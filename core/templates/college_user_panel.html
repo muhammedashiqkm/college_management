@@ -1,0 +1,102 @@
+{% load json_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>College Student Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      padding: 2rem;
+    }
+    h2 {
+      color: #2f3640;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td {
+      border: 1px solid #dcdde1;
+      padding: 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    pre {
+      margin: 0;
+      max-height: 200px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+      background: #f9f9f9;
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+    .logout {
+      float: right;
+      padding: 0.5rem 1rem;
+      background: #e84118;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      text-decoration: none;
+    }
+    .logout:hover {
+      background: #c23616;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <form method="post" action="{% url 'logout' %}" style="float: right;">
+     {% csrf_token %}
+    <button type="submit" class="logout">Logout</button>
+    </form>
+
+    <h2>Welcome {{ user.username }} | {{ user.collegeuser.college.name }}</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Student ID</th>
+          <th>Name</th>
+          <th>Department</th>
+          <th>Semester</th>
+          <th>Responses</th>
+          <th>Recommendations</th>
+          <th>Created At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for student in students %}
+          <tr>
+            <td>{{ student.student_id }}</td>
+            <td>{{ student.name }}</td>
+            <td>{{ student.department }}</td>
+            <td>{{ student.semester }}</td>
+            <td><pre>{{ student.responses|pretty_json }}</pre></td>
+            <td><pre>{{ student.recommendations|pretty_json }}</pre></td>
+            <td>{{ student.created_at }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">No students found for your college.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

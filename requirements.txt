@@ -1,0 +1,8 @@
+Django
+djangorestframework
+google-generativeai     # Gemini API client (if you're using it)
+requests
+gunicorn
+python-decouple
+psycopg2-binary
+
