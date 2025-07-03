@@ -229,25 +229,5 @@ python manage.py createsuperuser
 
 Visit: `http://localhost:8000/admin`
 
----
 
-## 🧪 Testing (Optional)
 
-You can extend `tests.py` for:
-
-- Student registration
-- Submission logic
-- API correctness
-
----
-
-## 📬 Contact
-
-Author: **Muhammed Ashiq**  
-Contact: [GitHub](https://github.com/muhammedashiqkm)
-
----
-
-## 📜 License
-
-MIT – use it freely for educational or non-commercial purposes.
