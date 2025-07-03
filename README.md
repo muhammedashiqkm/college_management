@@ -213,10 +213,9 @@ Set up Nginx as reverse proxy (optional).
 ---
 
 ### 💡 Production Tips
-
-- Run `python manage.py collectstatic`
+- college_management\settings.py -->
 - Use `DEBUG = False` in production
-- Set `ALLOWED_HOSTS` correctly
+- Set `ALLOWED_HOSTS` correctly `ALLOWED_HOSTS = ['']`
 - Use PostgreSQL — SQLite is not recommended for production
 
 ---
