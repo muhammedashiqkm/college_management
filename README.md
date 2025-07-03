@@ -62,26 +62,6 @@ DB_HOST=dpg-d1j4946r433s73fqn1s0-a.oregon-postgres.render.com
 DB_PORT=5432
 ```
 
-> Never commit your `.env` — add it to `.gitignore`.
-
-
-Create a `.env` file in your project root:
-
-```env
-# Google Gemini API
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# PostgreSQL DB Configuration (Render, Railway, etc.)
-DB_NAME=college_rec_db
-DB_USER=ashiq
-DB_PASSWORD=JE7d7PJuN5tGNPfGa2mhRIx4889Cx3hm
-DB_HOST=dpg-d1j4946r433s73fqn1s0-a.oregon-postgres.render.com
-DB_PORT=5432
-```
-
-> Never commit your `.env` — add it to `.gitignore`.
-
----
 
 ## 📡 API Endpoints
 
