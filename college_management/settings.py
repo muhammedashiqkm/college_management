@@ -114,8 +114,7 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/panel/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# Gemini API Configuration
-GEMINI_API_KEY = 'AIzaSyBu-CCjPZFNy62q1nY-BRkZp-3oAy-KrcU'
+
 
 USE_TZ = True
 TIME_ZONE = 'Asia/Kolkata'  # or your local timezone
