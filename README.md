@@ -45,6 +45,26 @@ dj-database-url
 
 ## 📦 .env Configuration
 
+Include the following in your `.env` file to securely store your secrets:
+
+```env
+# Django secret key
+SECRET_KEY=django-insecure-@=gtp^zk@nk9lp#jzq0z2+5jb4n+5n=$@m@vmp8*d8#kqs6%az
+
+# Google Gemini API
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# PostgreSQL DB Configuration (Render, Railway, etc.)
+DB_NAME=college_rec_db
+DB_USER=ashiq
+DB_PASSWORD=JE7d7PJuN5tGNPfGa2mhRIx4889Cx3hm
+DB_HOST=dpg-d1j4946r433s73fqn1s0-a.oregon-postgres.render.com
+DB_PORT=5432
+```
+
+> Never commit your `.env` — add it to `.gitignore`.
+
+
 Create a `.env` file in your project root:
 
 ```env
@@ -76,7 +96,7 @@ Register a student
   "student_id": "ST001",
   "name": "Alice",
   "department": "CS",
-  "semester": "6",
+  "semester": "First Semester",
   "college_name": "ABC College"
 }
 ```
@@ -213,9 +233,10 @@ Set up Nginx as reverse proxy (optional).
 ---
 
 ### 💡 Production Tips
-- college_management\settings.py -->
+
+- college_mangement/settings.py -->
 - Use `DEBUG = False` in production
-- Set `ALLOWED_HOSTS` correctly `ALLOWED_HOSTS = ['']`
+- Set `ALLOWED_HOSTS` correctly  ALLOWED_HOSTS = ['www.yourdomain.com']
 - Use PostgreSQL — SQLite is not recommended for production
 
 ---
@@ -228,5 +249,4 @@ python manage.py createsuperuser
 
 Visit: `http://localhost:8000/admin`
 
-
-
+---
