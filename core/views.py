@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from django.core.cache import cache
 
 from .models import College, Question, Student, CollegeUser
 from .serializers import (
@@ -34,7 +35,8 @@ def register_student(request):
 @permission_classes([permissions.AllowAny])
 def get_college_questions(request, college_name):
     college = get_object_or_404(College, name=college_name)
-    questions = Question.objects.filter(college=college)
+    # Optimized query to prefetch related options
+    questions = Question.objects.filter(college=college).prefetch_related('option_set')
     serializer = QuestionSerializer(questions, many=True)
     return Response(serializer.data)
 
@@ -53,11 +55,9 @@ def submit_answers(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Fetch student and college
     student = get_object_or_404(Student, student_id=student_id, college__name=college_name)
     college = student.college
 
-    # FIX: Validate that the questions submitted belong to the student's college
     valid_question_ids = set(Question.objects.filter(college=college).values_list('question_id', flat=True))
     submitted_question_ids = set(answers.keys())
 
@@ -70,22 +70,24 @@ def submit_answers(request):
     
     student.responses = answers
 
-    # Fetch available courses from external college API
-    try:
-        response = requests.get(f"{student.college.base_url}/website/ReadCourseDetails")
-        response.raise_for_status()
-        available_courses = response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch courses: {e}")
-        return Response(
-            {'error': 'Failed to fetch course list from the college. Please try again later.'},
-            status=status.HTTP_502_BAD_GATEWAY
-        )
+    # Caching for external API calls
+    cache_key = f"courses_{college.college_id}"
+    available_courses = cache.get(cache_key)
+    if not available_courses:
+        try:
+            response = requests.get(f"{college.base_url}/website/ReadCourseDetails")
+            response.raise_for_status()
+            available_courses = response.json()
+            cache.set(cache_key, available_courses, timeout=3600) # Cache for 1 hour
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch courses: {e}")
+            return Response(
+                {'error': 'Failed to fetch course list from the college. Please try again later.'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
 
-    # Get recommendations from Gemini (pass the full student object)
     recommendations_data = generate_course_recommendations(student, available_courses)
 
-    # Save final recommendations
     student.recommendations = recommendations_data.get('recommendations', [])
     student.save()
 
