@@ -1,7 +1,11 @@
 import google.generativeai as genai
 from django.conf import settings
 import json
+import logging
 from .models import Question, Option, RecommendationSetting, Student
+
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
 
 def initialize_gemini():
     """Configures and returns a Gemini generative model instance."""
@@ -25,8 +29,6 @@ def map_option_values_to_text(student):
 
     for qid, selected_value in student.responses.items():
         try:
-            # FIX: Look up the question using both its ID and the student's college
-            # to prevent mismatching questions from different colleges.
             question = Question.objects.get(question_id=qid, college=student.college)
             option = question.option_set.get(value=selected_value)
             enriched[question.text] = option.text
@@ -47,22 +49,19 @@ def generate_course_recommendations(student, available_courses):
     """
     college = student.college
     student_semester = student.semester
-
-    # FIX: Pass the entire student object to the mapping function.
     enriched_responses = map_option_values_to_text(student)
 
-    # First, group all available courses by SubjectGroupName
     grouped_courses = {}
     for course in available_courses:
         group = course.get('SubjectGroupName', 'Unknown')
         grouped_courses.setdefault(group, []).append(course)
 
     final_recommendations = []
+    
+    # --- OPTIMIZATION: Initialize the model once outside the loop ---
+    model = initialize_gemini()
 
-    # Process each subject group separately
     for group_name, courses_in_group in grouped_courses.items():
-        
-        # Then, filter the courses within that group by SemesterName
         filtered_courses_for_semester = courses_in_group
         if student_semester:
             filtered_courses_for_semester = [
@@ -100,7 +99,6 @@ You are an expert academic advisor. Based on the student's survey responses and 
 }}
 """
         try:
-            model = initialize_gemini()
             response = model.generate_content(prompt)
             cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
             parsed_json = json.loads(cleaned_response)
@@ -111,7 +109,8 @@ You are an expert academic advisor. Based on the student's survey responses and 
                 final_recommendations.extend(parsed_json['recommendations'])
 
         except Exception as e:
-            print(f"An error occurred while generating recommendations for group '{group_name}': {e}")
+            # Using logger for better error tracking in production
+            logger.error(f"An error occurred while generating recommendations for group '{group_name}': {e}")
             continue
 
     return {"recommendations": final_recommendations}
