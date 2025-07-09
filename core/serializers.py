@@ -30,6 +30,7 @@ class StudentSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """
         Check that a student with the same student_id does not already exist for this college.
+        Also, fetch the college instance and pass it to the create method.
         """
         college_name = data.get('college_name')
         student_id = data.get('student_id')
@@ -43,13 +44,20 @@ class StudentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"A student with ID '{student_id}' already exists in college '{college_name}'."
             )
-            
+        
+        # --- OPTIMIZATION: Pass the fetched college object to the create method ---
+        data['college_instance'] = college
         return data
 
     def create(self, validated_data):
-        college_name = validated_data.pop('college_name')
-        college = College.objects.get(name=college_name)
-        student = Student.objects.create(college=college, **validated_data)
+        """
+        Create a new student instance using the validated data.
+        """
+        # The college instance is now passed from the validate method
+        college_instance = validated_data.pop('college_instance')
+        validated_data.pop('college_name', None) # Remove college_name as it's not a model field
+        
+        student = Student.objects.create(college=college_instance, **validated_data)
         return student
 
 class StudentRecommendationSerializer(serializers.ModelSerializer):
