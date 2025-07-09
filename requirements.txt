@@ -1,6 +1,6 @@
 Django
 djangorestframework
-google-generativeai     # Gemini API client (if you're using it)
+google-generativeai 
 requests
 gunicorn
 python-decouple
