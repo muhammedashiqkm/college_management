@@ -1,15 +1,16 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.core.cache import cache
-
-from .models import College, Question, Student, CollegeUser
+from dotenv import load_dotenv
+load_dotenv()
+from .models import College, Question, Student
 from .serializers import (
-    CollegeSerializer, QuestionSerializer, StudentSerializer,
-    CollegeUserSerializer, StudentRecommendationSerializer
+    QuestionSerializer, StudentSerializer,
+    StudentRecommendationSerializer
 )
 
 import requests

@@ -1,7 +1,7 @@
-# Google Gemini API
+.PHONY: venv run clean
+
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# PostgreSQL DB Configuration
 DB_NAME=
 DB_USER=
 DB_PASSWORD=
@@ -14,3 +14,14 @@ DEBUG=True
 ALLOWED_HOSTS=127.0.0.1,localhost
 CORS_ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 DJANGO_LOG_LEVEL=INFO
+
+venv:
+	python3 -m venv .venv
+	.venv/Scripts/pip install --upgrade pip
+	.venv/Scripts/pip install -r requirements.txt
+
+run:
+	.venv/Scripts/python main.py
+
+clean:
+	rm -rf .venv

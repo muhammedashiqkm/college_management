@@ -1,0 +1,75 @@
+# Byte-compiled / optimized / compiled files
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Distribution / packaging
+.Python
+build/
+dist/
+eggs/
+*.egg
+parts/
+sdist/
+var/
+wheels/
+*.whl
+*.mo
+*.pot
+*.log
+*.sqlite3
+.env
+
+# Environments
+.venv/
+venv/
+env/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.bak
+*.swo
+*~
+.DS_Store
+
+# Django specific
+*.log
+*.pot
+*.mo
+local_settings.py
+db.sqlite3
+media/
+static/
+
+# Celery beat schedule file
+celerybeat-schedule
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# macOS
+.DS_Store
+
+# Thumbnails
+.thumbnails/
+
+# Crash files
+*.stackdump
+
+# VSCode
+.vscode/
+
+# dotenv files
+.env
+.flaskenv
+
+# Jupyter Notebook
+.ipynb_checkpoints

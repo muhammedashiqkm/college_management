@@ -3,6 +3,7 @@ djangorestframework
 google-generativeai 
 requests
 gunicorn
-python-decouple
 psycopg2-binary
 whitenoise
+django-cors-headers
+python-dotenv
