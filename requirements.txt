@@ -7,3 +7,4 @@ psycopg2-binary
 whitenoise
 django-cors-headers
 python-dotenv
+djangorestframework-simplejwt
