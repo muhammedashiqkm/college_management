@@ -19,7 +19,7 @@ from .services import generate_course_recommendations
 
 # API: Register Student
 @api_view(['POST'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 def register_student(request):
     serializer = StudentSerializer(data=request.data)
     if serializer.is_valid():
@@ -33,7 +33,7 @@ def register_student(request):
 
 # API: Get questions for a specific college
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 def get_college_questions(request, college_name):
     college = get_object_or_404(College, name=college_name)
     # Optimized query to prefetch related options
@@ -44,7 +44,7 @@ def get_college_questions(request, college_name):
 
 # API: Submit student answers and get course recommendations
 @api_view(['POST'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 def submit_answers(request):
     student_id = request.data.get('student_id')
     answers = request.data.get('answers')
@@ -97,7 +97,7 @@ def submit_answers(request):
 
 # API: Get stored student recommendations
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 def get_student_recommendation(request, student_id, college_name):
     student = get_object_or_404(Student, student_id=student_id, college__name=college_name)
 
@@ -114,7 +114,7 @@ def get_student_recommendation(request, student_id, college_name):
 
 # API: Get all student recommendations for a college
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticated])
 def get_college_recommendations(request, college_name):
     college = get_object_or_404(College, name=college_name)
     students = Student.objects.filter(college=college, recommendations__isnull=False)
