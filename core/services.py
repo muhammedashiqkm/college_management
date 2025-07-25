@@ -39,13 +39,9 @@ def map_option_values_to_text(student):
 def generate_course_recommendations(student, available_courses):
     """
     Generates course recommendations using the Gemini model based on student survey responses.
-    
-    Args:
-        student (Student): The student instance for whom recommendations are being generated.
-        available_courses (list): A list of all available courses from the college.
 
     Returns:
-        dict: A dictionary containing a list of final course recommendations.
+        dict: Contains 'recommendations' and 'skillset'.
     """
     college = student.college
     student_semester = student.semester
@@ -57,8 +53,8 @@ def generate_course_recommendations(student, available_courses):
         grouped_courses.setdefault(group, []).append(course)
 
     final_recommendations = []
-    
-    # --- OPTIMIZATION: Initialize the model once outside the loop ---
+    all_skillsets = set()
+
     model = initialize_gemini()
 
     for group_name, courses_in_group in grouped_courses.items():
@@ -89,28 +85,35 @@ You are an expert academic advisor. Based on the student's survey responses and 
 **Instructions:**
 - Analyze the student's preferences.
 - Compare them against the available courses.
-- Return exactly {num_recommend} course recommendations from the provided list.
-- Your response must be only a JSON object in the following format:
+- Return a JSON with exactly {num_recommend} course recommendations and a skillset the student is likely to build.
+
+Format:
 {{
   "recommendations": [
     {{"SubjectName": "...", "PaperName": "..."}},
     ...
-  ]
+  ],
+  "skillset": ["Skill A", "Skill B", ...]
 }}
 """
         try:
             response = model.generate_content(prompt)
             cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
             parsed_json = json.loads(cleaned_response)
-            
+
             if 'recommendations' in parsed_json:
                 for rec in parsed_json['recommendations']:
                     rec['SubjectGroupName'] = group_name
                 final_recommendations.extend(parsed_json['recommendations'])
 
+            skillset = parsed_json.get('skillset', [])
+            all_skillsets.update(skillset)
+
         except Exception as e:
-            # Using logger for better error tracking in production
             logger.error(f"An error occurred while generating recommendations for group '{group_name}': {e}")
             continue
 
-    return {"recommendations": final_recommendations}
+    return {
+        "recommendations": final_recommendations,
+        "skillset": list(all_skillsets)
+    }
