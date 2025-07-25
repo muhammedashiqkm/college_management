@@ -71,7 +71,7 @@ def submit_answers(request):
     
     student.responses = answers
 
-    # Caching for external API calls
+    # Cache course list
     cache_key = f"courses_{college.college_id}"
     available_courses = cache.get(cache_key)
     if not available_courses:
@@ -79,7 +79,7 @@ def submit_answers(request):
             response = requests.get(f"{college.base_url}/website/ReadCourseDetails")
             response.raise_for_status()
             available_courses = response.json()
-            cache.set(cache_key, available_courses, timeout=3600) # Cache for 1 hour
+            cache.set(cache_key, available_courses, timeout=3600)
         except requests.exceptions.RequestException as e:
             print(f"Failed to fetch courses: {e}")
             return Response(
@@ -92,7 +92,11 @@ def submit_answers(request):
     student.recommendations = recommendations_data.get('recommendations', [])
     student.save()
 
-    return Response(recommendations_data, status=status.HTTP_200_OK)
+    return Response({
+        "recommendations": recommendations_data.get("recommendations", []),
+        "skillset": recommendations_data.get("skillset", [])
+    }, status=status.HTTP_200_OK)
+
 
 
 # API: Get stored student recommendations
