@@ -16,32 +16,41 @@ def map_option_values_to_text(student):
     """
     Converts student's selected option values into human-readable text,
     ensuring questions are matched within the student's college.
-    
-    Args:
-        student (Student): The student instance, containing responses and college info.
-
-    Returns:
-        dict: A dictionary with question text as keys and the corresponding selected option text as values.
     """
     enriched = {}
     if not student.responses:
         return enriched
 
+    qids = student.responses.keys()
+    questions = Question.objects.filter(
+        question_id__in=qids, college=student.college
+    ).prefetch_related('option_set')
+
+    question_map = {q.question_id: q for q in questions}
+
     for qid, selected_value in student.responses.items():
-        try:
-            question = Question.objects.get(question_id=qid, college=student.college)
-            option = question.option_set.get(value=selected_value)
-            enriched[question.text] = option.text
-        except (Question.DoesNotExist, Option.DoesNotExist):
-            enriched[f"Question ID {qid} for college {student.college.name}"] = f"Selected: {selected_value} (question or option not found)"
+        question = question_map.get(qid)
+        if question:
+            try:
+                option = next(opt for opt in question.option_set.all() if opt.value == selected_value)
+                enriched[question.text] = option.text
+            except StopIteration:
+                logger.warning(
+                    f"Data integrity issue: Selected value '{selected_value}' for Question "
+                    f"'{question.text}' (ID: {qid}) was not found for college '{student.college.name}'."
+                )
+                enriched[f"Question ID {qid}"] = f"Selected value '{selected_value}' not found for this option set."
+        else:
+            logger.warning(
+                f"Data integrity issue: Question ID '{qid}' from student response was "
+                f"not found for college '{student.college.name}'."
+            )
+            enriched[f"Question ID {qid}"] = "Question not found for this college."
     return enriched
 
 def generate_course_recommendations(student, available_courses):
     """
     Generates course recommendations using the Gemini model based on student survey responses.
-
-    Returns:
-        dict: Contains 'recommendations' and 'skillset'.
     """
     college = student.college
     student_semester = student.semester
@@ -51,10 +60,15 @@ def generate_course_recommendations(student, available_courses):
     for course in available_courses:
         group = course.get('SubjectGroupName', 'Unknown')
         grouped_courses.setdefault(group, []).append(course)
+        
+    group_names = grouped_courses.keys()
+    settings_qs = RecommendationSetting.objects.filter(
+        college=college, subject_group_name__in=group_names
+    )
+    settings_map = {s.subject_group_name: s for s in settings_qs}
 
     final_recommendations = []
     all_skillsets = set()
-
     model = initialize_gemini()
 
     for group_name, courses_in_group in grouped_courses.items():
@@ -66,12 +80,12 @@ def generate_course_recommendations(student, available_courses):
 
         if not filtered_courses_for_semester:
             continue
-
-        try:
-            setting = RecommendationSetting.objects.get(college=college, subject_group_name=group_name)
-            num_recommend = setting.num_recommendations
-        except RecommendationSetting.DoesNotExist:
+        
+        setting = settings_map.get(group_name)
+        if not setting:
             continue
+            
+        num_recommend = setting.num_recommendations
 
         prompt = f"""
 You are an expert academic advisor. Based on the student's survey responses and the list of available courses for the "{group_name}" subject group, recommend exactly {num_recommend} of the most suitable courses.
