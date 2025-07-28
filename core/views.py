@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
-from django.conf import settings # Import Django settings
 from dotenv import load_dotenv
 load_dotenv()
 from .models import College, Question, Student, Option
@@ -55,14 +54,7 @@ def get_college_questions(request, college_name):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def submit_answers(request):
-    # NEW: Check if the recommendation service is configured and available
-    if not settings.GEMINI_API_KEY:
-        logger.error("Attempted to generate recommendations, but GEMINI_API_KEY is not set.")
-        return Response(
-            {'error': 'The recommendation service is temporarily unavailable. Please try again later.'},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-        
+    
     student_id = request.data.get('student_id')
     answers = request.data.get('answers')
     college_name = request.data.get('college_name')
@@ -135,6 +127,16 @@ def submit_answers(request):
             )
 
     recommendations_data = generate_course_recommendations(student, available_courses)
+
+    # This is our key change: check for the 'error' key in the response.
+    if 'error' in recommendations_data:
+        return Response(
+            {
+                'error': 'Could not generate recommendations due to a service error.',
+                'service_error_details': recommendations_data['error']
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
 
     student.recommendations = {
     "courses": recommendations_data.get("recommendations", []),

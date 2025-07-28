@@ -51,6 +51,7 @@ def map_option_values_to_text(student):
 def generate_course_recommendations(student, available_courses):
     """
     Generates course recommendations using the Gemini model based on student survey responses.
+    If the API call fails, it returns a dictionary with an 'error' key.
     """
     college = student.college
     student_semester = student.semester
@@ -112,6 +113,12 @@ Format:
 """
         try:
             response = model.generate_content(prompt)
+            if not response.text:
+                logger.error(f"Gemini API returned an empty response for group '{group_name}'.")
+                return {
+                    "error": "The recommendation service returned an empty or invalid response. This may be due to an API key issue or temporary service degradation."
+                }
+            
             cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
             parsed_json = json.loads(cleaned_response)
 
@@ -125,7 +132,9 @@ Format:
 
         except Exception as e:
             logger.error(f"An error occurred while generating recommendations for group '{group_name}': {e}")
-            continue
+            return {
+                "error": "An error occurred while communicating with the recommendation service. This could be due to an invalid API key, expired credentials, or a temporary service outage."
+            }
 
     return {
         "recommendations": final_recommendations,
