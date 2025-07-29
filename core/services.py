@@ -88,29 +88,33 @@ def generate_course_recommendations(student, available_courses):
             
         num_recommend = setting.num_recommendations
 
+        # --- PROMPT MODIFICATION ---
+        # The prompt is updated to explicitly separate the logic for course recommendations and skillset identification.
         prompt = f"""
-You are an expert academic advisor. Based on the student's survey responses and the list of available courses for the "{group_name}" subject group, recommend exactly {num_recommend} of the most suitable courses.
+You are an expert academic advisor. Your task is to perform two distinct actions based on the provided data.
 
-**Student Responses:**
+**Student's Survey Responses:**
 {json.dumps(enriched_responses, indent=2)}
 
 **Available {group_name} Courses (for the student's semester):**
 {json.dumps(filtered_courses_for_semester, indent=2)}
 
 **Instructions:**
-- Analyze the student's preferences.
-- Compare them against the available courses.
-- Return a JSON with exactly {num_recommend} course recommendations and a skillset the student is likely to build.
+1.  **Course Recommendation**: Analyze the student's preferences from their survey responses and recommend exactly {num_recommend} of the most suitable courses from the "Available {group_name} Courses" list.
+2.  **Skillset Identification**: Based *ONLY* on the "Student's Survey Responses", identify and list the skills the student either possesses or is interested in developing. This skillset should be derived directly from their answers, not from the courses.
 
-Format:
+**Output Format:**
+Return a single, clean JSON object. Do not include any text or markdown formatting before or after the JSON.
 {{
   "recommendations": [
     {{"SubjectName": "...", "PaperName": "..."}},
     ...
   ],
-  "skillset": ["Skill A", "Skill B", ...]
+  "skillset": ["Skill derived from survey A", "Skill derived from survey B", ...]
 }}
 """
+        # --- END OF PROMPT MODIFICATION ---
+
         try:
             response = model.generate_content(prompt)
             if not response.text:
