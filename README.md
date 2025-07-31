@@ -153,6 +153,54 @@ Fetch all recommendations in a college
 
 ---
 
+Of course. Here are the results for the token endpoints, added to your API documentation.
+
+-----
+
+### 6\. `POST /api/token/`
+
+Authenticate a user and get access and refresh JWT tokens. This endpoint is handled by `TokenObtainPairView` from `rest_framework_simplejwt`.
+
+#### Request:
+
+```json
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+```
+
+#### Response:
+
+```json
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjcxODIzNjEzLCJpYXQiOjE2NzE4MjMzMTMsImp0aSI6ImQ0Y...",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTY3MTkwOTcxMywiaWF0IjoxNjcxODIzMzEzLCJqdGkiOiI5Z..."
+}
+```
+
+-----
+
+### 7\. `POST /api/token/refresh/`
+
+Obtain a new access token by providing a valid refresh token. This is handled by `TokenRefreshView`.
+
+#### Request:
+
+```json
+{
+  "refresh": "your_refresh_token_here"
+}
+```
+
+#### Response:
+
+```json
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjcxODIzOTI1LCJpYXQiOjE2NzE4MjM2MjUsImp0aSI6Ijli..."
+}
+```
+
 ## 🔐 HTML Routes
 
 | Route | Description |
