@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 def initialize_gemini():
     """Configures and returns a Gemini generative model instance."""
     genai.configure(api_key=settings.GEMINI_API_KEY)
-    return genai.GenerativeModel('models/gemini-1.5-flash')
+    # Use the model name from settings
+    return genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
 
 def map_option_values_to_text(student):
     """

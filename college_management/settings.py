@@ -102,6 +102,7 @@ CACHES = {
 }
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "models/gemini-1.5-flash")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -119,6 +120,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 from datetime import timedelta
+
+ACCESS_TOKEN_LIFETIME_DAYS = int(os.environ.get("ACCESS_TOKEN_LIFETIME_DAYS", 1))
+REFRESH_TOKEN_LIFETIME_DAYS = int(os.environ.get("REFRESH_TOKEN_LIFETIME_DAYS", 30))
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
