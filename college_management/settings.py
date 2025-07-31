@@ -1,3 +1,5 @@
+# settings.py
+
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -90,6 +92,15 @@ else:
         }
     }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        # This will create a 'django_cache' directory in your project's base folder.
+        # The line `import os` should be at the top of your file.
+        'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
+    }
+}
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -106,13 +117,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-    }
-}
 
 from datetime import timedelta
 

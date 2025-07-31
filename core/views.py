@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from functools import wraps
 import requests
 import logging
-
 from .models import College, Question, Student, Option
 from .serializers import (
     QuestionSerializer, StudentSerializer,
