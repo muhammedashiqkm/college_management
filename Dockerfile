@@ -51,8 +51,7 @@ COPY . .
 RUN chown -R app:app /app
 
 # Run collectstatic to gather all static files into STATIC_ROOT
-# This needs to be run as root before switching to the non-root user
-RUN python manage.py collectstatic --noinput
+
 
 # Switch to the non-root user
 USER app
