@@ -22,8 +22,7 @@ venv/
 db.sqlite3
 *.sql
 
-# Static files (these will be collected inside the container)
-staticfiles/
+
 
 # IDE files
 .idea/
