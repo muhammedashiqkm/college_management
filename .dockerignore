@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Environment
+.env*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+env/
+venv/
+
+# Database
+db.sqlite3
+*.sql
+
+# Static files (these will be collected inside the container)
+staticfiles/
+
+# IDE files
+.idea/
+.vscode/
+
+# Other
+*.log
