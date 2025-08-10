@@ -17,15 +17,12 @@ allowed_hosts_str = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_str.split(",") if host.strip()]
 
 
-# if not DEBUG:
-#     SECURE_SSL_REDIRECT = True
-#     SESSION_COOKIE_SECURE = True
-#     CSRF_COOKIE_SECURE = True
-#     SECURE_HSTS_SECONDS = 31536000
-#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-#     SECURE_HSTS_PRELOAD = True
-#     SECURE_BROWSER_XSS_FILTER = True
-#     SECURE_CONTENT_TYPE_NOSNIFF = True
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -80,7 +77,7 @@ if DEBUG == True:
         }
     }
 else:
-    DATABASES = {
+ DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
                 'NAME': os.environ.get("DB_NAME"),
@@ -95,8 +92,6 @@ else:
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        # This will create a 'django_cache' directory in your project's base folder.
-        # The line `import os` should be at the top of your file.
         'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
     }
 }
@@ -166,6 +161,8 @@ LOGIN_REDIRECT_URL = '/panel/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
 
 LOGGING = {
     'version': 1,

@@ -1,9 +1,14 @@
 services:
   web:
     build: .
+    container_name: course-recommendation
     volumes:
-      - .:/app
+      - .:/app 
+      - django_cache:/app/django_cache 
     ports:
       - "8000:8000"
     env_file:
       - .env
+
+volumes:
+  django_cache:
