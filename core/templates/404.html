@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+
+    <style>
+        /* Basic page styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5; /* Light gray background */
+            color: #333;
+            margin: 0;
+            padding: 20px; /* Add padding for mobile view */
+            
+            /* Use Flexbox to center the content card */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box; /* Ensures padding doesn't break layout */
+        }
+
+        /* The content card */
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            padding: 2.5rem 3rem; /* Generous internal spacing */
+            max-width: 550px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* The big "404" number */
+        h1 {
+            font-size: 6rem; /* Very large text for the error code */
+            color: #007bff;  /* A professional, standard blue */
+            margin: 0 0 0.5rem 0;
+            line-height: 1; /* Tighten up the line height */
+            font-weight: 700;
+        }
+
+        /* The "Page Not Found" heading */
+        h2 {
+            font-size: 1.75rem;
+            color: #333;
+            margin: 0 0 1rem 0;
+            font-weight: 600;
+        }
+
+        /* The helpful descriptive text */
+        p {
+            font-size: 1.1rem;
+            color: #666; /* Slightly lighter text for the description */
+            line-height: 1.6;
+            margin: 0 0 2rem 0; /* Space above the button */
+        }
+
+        /* The "Go Home" button */
+        .home-link {
+            display: inline-block;
+            background-color: #007bff; /* Button color matches the 404 code */
+            color: #ffffff;
+            padding: 0.75rem 1.5rem; /* Button sizing */
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background-color 0.2s ease; /* Smooth hover effect */
+        }
+
+        /* Darker blue when hovering over the button */
+        .home-link:hover {
+            background-color: #0056b3;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>404</h1>
+        <h2>Page Not Found</h2>
+        <p>
+            Sorry, the page you are looking for might have been removed,
+            had its name changed, or is temporarily unavailable.
+        </p>
+        <a href="/" class="home-link">Go to Homepage</a>
+    </div>
+
+</body>
+</html>

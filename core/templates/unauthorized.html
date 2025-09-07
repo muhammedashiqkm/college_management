@@ -1,8 +1,60 @@
 <!DOCTYPE html>
 <html>
-<head><title>Unauthorized</title></head>
+<head>
+    <title>Unauthorized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <style>
+        /* Basic page reset and centering */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5; /* Light gray page background */
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            
+            /* Use Flexbox to center the error card vertically and horizontally */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Full viewport height */
+            box-sizing: border-box; /* Ensures padding doesn't break layout */
+        }
+
+        /* The error card */
+        .error-container {
+            background-color: #ffffff; /* White card background */
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Soft shadow */
+            padding: 2.5rem; /* Generous spacing inside the card */
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            border-top: 5px solid #d93025; /* Red accent border on top */
+        }
+
+        /* Styling the error heading */
+        h2 {
+            color: #d93025; /* Matching red text color */
+            font-size: 1.8rem;
+            margin: 0 0 0.5rem 0; /* Space below the heading */
+        }
+
+        /* Styling the explanatory paragraph */
+        p {
+            font-size: 1.1rem;
+            color: #555; /* Slightly lighter text color for the description */
+            line-height: 1.5;
+            margin: 0;
+        }
+    </style>
+</head>
 <body>
-    <h2>Access Denied</h2>
-    <p>You are not authorized to view this page.</p>
+    
+    <div class="error-container">
+        <h2>Access Denied</h2>
+        <p>You are not authorized to view this page.</p>
+    </div>
+
 </body>
 </html>

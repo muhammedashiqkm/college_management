@@ -13,25 +13,16 @@ from .serializers import (
     QuestionSerializer, StudentSerializer,
     StudentRecommendationSerializer
 )
-from .services import generate_course_recommendations
+from .tasks import generate_recommendations_task
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-# --- Reusable Decorator for College Lookup ---
-
 def get_college_by_name(view_func):
-    """
-    Decorator to fetch a College object by its name from a URL parameter
-    or request body and pass it to the view. Handles Not Found errors.
-    """
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
-        # Check for 'college_name' in URL keyword arguments first
         college_name = kwargs.get('college_name')
-
-        # If not in URL, check the request body
         if not college_name:
             college_name = request.data.get('college_name')
 
@@ -40,7 +31,6 @@ def get_college_by_name(view_func):
                 {'error': 'A college_name must be provided in the URL or request body.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         try:
             college = College.objects.get(name=college_name)
         except College.DoesNotExist:
@@ -48,18 +38,13 @@ def get_college_by_name(view_func):
                 {'error': f"College with name '{college_name}' not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
-        # Pass the fetched college object to the actual view function
         return view_func(request, college=college, *args, **kwargs)
     return _wrapped_view
 
 
-# --- API Views ---
-
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def register_student(request):
-    """API: Register a new student."""
     serializer = StudentSerializer(data=request.data)
     if serializer.is_valid():
         student = serializer.save()
@@ -74,7 +59,6 @@ def register_student(request):
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
 def get_college_questions(request, college, **kwargs):
-    """API: Get questions for a specific college."""
     questions = Question.objects.filter(college=college).prefetch_related('option_set')
     serializer = QuestionSerializer(questions, many=True)
     return Response(serializer.data)
@@ -84,16 +68,24 @@ def get_college_questions(request, college, **kwargs):
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
 def submit_answers(request, college, **kwargs):
-    """API: Submit student answers and get course recommendations."""
     student_id = request.data.get('student_id')
     answers = request.data.get('answers')
+    
+    model_provider = request.data.get('model', 'gemini').lower()
+    ALLOWED_MODELS = ['gemini', 'openai', 'deepseek']
+
+    if model_provider not in ALLOWED_MODELS:
+        return Response(
+            {'error': f"Invalid model provider. Please choose from: {', '.join(ALLOWED_MODELS)}."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     if not all([student_id, answers]):
         return Response(
             {'error': 'student_id and answers are required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     try:
         student = Student.objects.get(student_id=student_id, college=college)
     except Student.DoesNotExist:
@@ -112,29 +104,25 @@ def submit_answers(request, college, **kwargs):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # --- Enhanced Validation for Answer Values ---
     valid_options = Option.objects.filter(
-        question__college=college, 
+        question__college=college,
         question__question_id__in=submitted_question_ids
     ).values('question__question_id', 'value')
-    
+
     valid_option_set = {(opt['question__question_id'], opt['value']) for opt in valid_options}
-    
+
     invalid_answers = []
     for q_id, ans_val in answers.items():
         if (q_id, ans_val) not in valid_option_set:
             invalid_answers.append({q_id: ans_val})
 
     if invalid_answers:
-        # If there are invalid answers, prepare a detailed error response
         invalid_question_ids = [list(q.keys())[0] for q in invalid_answers]
-        
-        # Fetch the correct options for the questions that were answered incorrectly
         options_for_invalid_qs = Option.objects.filter(
             question__college=college,
             question__question_id__in=invalid_question_ids
         ).values('question__question_id', 'value')
-        
+
         available_options = {}
         for option in options_for_invalid_qs:
             q_id = option['question__question_id']
@@ -142,7 +130,6 @@ def submit_answers(request, college, **kwargs):
                 available_options[q_id] = []
             available_options[q_id].append(option['value'])
 
-        # Return the new, more informative JSON response
         return Response({
             'error': "Invalid option provided for one or more questions.",
             'details': {
@@ -151,50 +138,32 @@ def submit_answers(request, college, **kwargs):
             }
         }, status=status.HTTP_400_BAD_REQUEST)
     
+
     student.responses = answers
+    student.recommendation_status = 'PENDING'
+    student.recommendation_error = None
+    student.save(update_fields=['responses', 'recommendation_status', 'recommendation_error']) 
 
-    # --- Course fetching and recommendation logic remains the same ---
-    cache_key = f"courses_{college.college_id}"
-    available_courses = cache.get(cache_key)
-    if not available_courses:
-        try:
-            response = requests.get(f"{college.base_url}/website/ReadCourseDetails")
-            response.raise_for_status()
-            available_courses = response.json()
-            cache.set(cache_key, available_courses, timeout=3600)
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch courses for college '{college.name}': {e}")
-            return Response(
-                {'error': 'Failed to fetch course list from the college. Please try again later.'},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
-
-    recommendations_data = generate_course_recommendations(student, available_courses)
-
-    if 'error' in recommendations_data:
-        return Response(
-            {'error': 'Could not generate recommendations due to a service error.',
-             'service_error_details': recommendations_data['error']},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-
-    student.recommendations = {
-        "courses": recommendations_data.get("recommendations", []),
-        "skillset": recommendations_data.get("skillset", [])
-    }
-    student.save()
+    generate_recommendations_task.delay(
+        student_id=student.id,
+        college_id=college.id,
+        model_provider=model_provider
+    )
 
     return Response({
-        "recommendations": recommendations_data.get("recommendations", []),
-        "skillset": recommendations_data.get("skillset", [])
-    }, status=status.HTTP_200_OK)
+        "status": "pending",
+        "message": "Your answers have been submitted. Recommendations are being generated and will be available shortly."
+    }, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
 def get_student_recommendation(request, student_id, college, **kwargs):
-    """API: Get stored recommendations for a specific student."""
+    """
+    API: Get stored recommendations for a specific student.
+    This now checks the generation status (Pending, Completed, Failed).
+    """
     try:
         student = Student.objects.get(student_id=student_id, college=college)
     except Student.DoesNotExist:
@@ -203,20 +172,41 @@ def get_student_recommendation(request, student_id, college, **kwargs):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    if not student.recommendations:
+    # --- FIX ---
+    # Renamed this variable from 'status' to 'job_status' to avoid
+    # conflicting with the imported 'status' module from rest_framework.
+    job_status = student.recommendation_status
+
+    if job_status == 'COMPLETED':
+        return Response({
+            "status": "COMPLETED",
+            "recommendations": student.recommendations
+        }, status=status.HTTP_200_OK)
+
+    elif job_status == 'PENDING':
+        return Response({
+            "status": "PENDING",
+            "message": "Recommendations are still being generated. Please check back later."
+        }, status=status.HTTP_202_ACCEPTED)
+
+    elif job_status == 'FAILED':
+        return Response({
+            "status": "FAILED",
+            "error": "Failed to generate recommendations.",
+            "detail": student.recommendation_error
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    else:
         return Response(
-            {'error': 'No recommendations have been generated for this student yet.'},
+            {'error': 'No answers have been submitted for this student yet.'},
             status=status.HTTP_404_NOT_FOUND
         )
-
-    return Response({"recommendations": student.recommendations})
 
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
 def get_college_recommendations(request, college, **kwargs):
-    """API: Get all student recommendations for a specific college."""
     students = Student.objects.filter(college=college, recommendations__isnull=False)
     serializer = StudentRecommendationSerializer(students, many=True)
     return Response({
@@ -225,13 +215,10 @@ def get_college_recommendations(request, college, **kwargs):
     })
 
 
-# --- HTML View ---
-
 @login_required
 def college_user_panel(request):
-    """HTML View: Renders the panel for an authenticated college user."""
-    if not hasattr(request.user, 'collegeuser'):
+    if not hasattr(request, 'user') or not hasattr(request.user, 'collegeuser'):
         return render(request, 'unauthorized.html')
-    
+
     students = Student.objects.filter(college=request.user.collegeuser.college)
     return render(request, 'college_user_panel.html', {'students': students})

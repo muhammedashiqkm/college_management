@@ -25,6 +25,7 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -73,7 +74,7 @@ if DEBUG == True:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3', # This line assumes BASE_DIR is defined in your settings.py
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 else:
@@ -96,8 +97,73 @@ CACHES = {
     }
 }
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "models/gemini-1.5-flash")
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME')
+
+# --- ADD THE FOLLOWING LINES ---
+
+# OpenAI Settings
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_MODEL_NAME = os.environ.get('OPENAI_MODEL_NAME')
+
+# DeepSeek Settings
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
+DEEPSEEK_MODEL_NAME = os.environ.get('DEEPSEEK_MODEL_NAME')
+DEEPSEEK_API_BASE = os.environ.get('DEEPSEEK_API_BASE')
+
+# settings.py
+
+JAZZMIN_SETTINGS = {
+    "site_title": "College Recommendation Admin",
+    "site_header": "Course Recommendation System",
+    "site_brand": "College Panel",
+    "welcome_sign": "Welcome to the College Recommendation Admin",
+    "copyright": "Meshilogic",
+
+    # Theme + Dark mode
+    "theme": "darkly",  # options: cerulean, cosmo, cyborg, darkly, slate, solar, etc.
+    "show_ui_builder": True,  # Lets you preview and customize themes in admin
+
+    # Icons for apps/models
+    "icons": {
+        "auth.User": "fas fa-user",
+        "core.College": "fas fa-university",
+        "core.Student": "fas fa-user-graduate",
+        "core.Question": "fas fa-question-circle",
+        "core.Option": "fas fa-list",
+        "core.RecommendationSetting": "fas fa-cogs",
+        "core.CollegeUser": "fas fa-users-cog",
+    },
+
+    # Navigation
+    "topmenu_links": [
+        {"name": "Dashboard", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"model": "core.College"},
+        {"model": "core.Student"},
+        {"app": "core"},
+    ],
+
+    # Side Menu
+    "order_with_respect_to": ["core", "auth"],
+    "hide_apps": [],
+    "hide_models": [],
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "darkly",
+    "dark_mode_theme": "darkly",
+    "navbar": "navbar-dark navbar-primary",
+    "sidebar": "sidebar-dark-primary",
+    "brand_colour": "navbar-primary",
+    "accent": "accent-primary",
+    "navbar_fixed": True,
+    "sidebar_fixed": True,
+}
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {

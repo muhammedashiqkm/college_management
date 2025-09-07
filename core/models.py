@@ -45,6 +45,24 @@ class Student(models.Model):
     responses = models.JSONField(null=True, blank=True)
     recommendations = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+    ]
+
+    recommendation_status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default=None,  
+        null=True,
+        blank=True
+    )
+    
+    recommendation_error = models.TextField(
+        null=True, 
+        blank=True
+    )
 
     class Meta:
         unique_together = ('college', 'student_id')
