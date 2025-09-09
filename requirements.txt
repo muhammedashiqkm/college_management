@@ -2,7 +2,6 @@ Django
 djangorestframework
 google-generativeai 
 requests
-gunicorn
 psycopg2-binary
 whitenoise
 django-cors-headers

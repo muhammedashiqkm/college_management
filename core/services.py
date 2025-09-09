@@ -9,36 +9,7 @@ from typing import List, Dict
 import asyncio
 from asgiref.sync import sync_to_async
 
-# Get an instance of a logger
 logger = logging.getLogger(__name__)
-
-def initialize_gemini():
-    """Configures and returns a Gemini generative model instance."""
-    try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        return genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
-    except Exception as e:
-        logger.error(f"Failed to initialize Gemini: {e}")
-        return None
-
-def initialize_openai():
-    """Configures and returns an OpenAI client instance."""
-    try:
-        return openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-    except Exception as e:
-        logger.error(f"Failed to initialize OpenAI: {e}")
-        return None
-
-def initialize_deepseek():
-    """Configures and returns an OpenAI-compatible client for DeepSeek."""
-    try:
-        return openai.OpenAI(
-            api_key=settings.DEEPSEEK_API_KEY,
-            base_url=settings.DEEPSEEK_API_BASE
-        )
-    except Exception as e:
-        logger.error(f"Failed to initialize DeepSeek: {e}")
-        return None
 
 
 def initialize_gemini_async():
@@ -69,11 +40,11 @@ def initialize_deepseek_async():
         logger.error(f"Failed to initialize DeepSeek (async): {e}")
         return None
 
-
-class RecommendationSchema(BaseModel):
+class CourseRecSchema(BaseModel):
     recommendations: List[Dict[str, str]]
-    skillset: List[str]
 
+class SkillsetSchema(BaseModel):
+    skillset: List[str]
 
 
 def safe_parse_json(response_text: str):
@@ -124,20 +95,17 @@ def map_option_values_to_text(student):
             enriched[f"Question ID {qid}"] = "Question not found for this college."
     return enriched
 
-
-
-async def _generate_for_group(client, model_provider, model_name, prompt_content, schema):
-    """Async helper to run generation for one subject group."""
+async def _generate_skillset_async(client, model_provider, model_name, prompt_content):
+    """Async helper to run generation for the skillset ONLY."""
     try:
-        parsed_json = None
         if model_provider == "gemini":
+            gemini_schema = {"type": "object", "properties": {"skillset": {"type": "array", "items": {"type": "string"}}}, "required": ["skillset"]}
             response = await client.generate_content_async(
                 prompt_content,
-                generation_config={"response_mime_type": "application/json", "response_schema": schema},
+                generation_config={"response_mime_type": "application/json", "response_schema": gemini_schema},
             )
             parsed_json = json.loads(response.text)
-
-        else: 
+        else:
             completion = await client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -148,23 +116,50 @@ async def _generate_for_group(client, model_provider, model_name, prompt_content
             )
             parsed_json = safe_parse_json(completion.choices[0].message.content)
 
-        validated = RecommendationSchema.parse_obj(parsed_json)
-        return validated 
-        
+        validated = SkillsetSchema.parse_obj(parsed_json)
+        return validated.skillset
     except Exception as e:
-        logger.error(f"Async generation failed for provider '{model_provider}': {e}")
+        logger.error(f"Async skillset generation failed for '{model_provider}': {e}")
         return None
+
+async def _generate_recs_for_group_async(client, model_provider, model_name, prompt_content):
+    """Async helper to run generation for course recommendations for ONE group."""
+    try:
+        if model_provider == "gemini":
+            gemini_schema = {"type": "object", "properties": {"recommendations": {"type": "array", "items": {"type": "object", "properties": {"SubjectName": {"type": "string"}, "PaperName": {"type": "string"}}, "required": ["SubjectName", "PaperName"]}}}, "required": ["recommendations"]}
+            response = await client.generate_content_async(
+                prompt_content,
+                generation_config={"response_mime_type": "application/json", "response_schema": gemini_schema},
+            )
+            parsed_json = json.loads(response.text)
+        else:
+            completion = await client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that only responds in valid JSON."},
+                    {"role": "user", "content": prompt_content}
+                ],
+                response_format={"type": "json_object"}
+            )
+            parsed_json = safe_parse_json(completion.choices[0].message.content)
+
+        validated = CourseRecSchema.parse_obj(parsed_json)
+        return validated.recommendations
+    except Exception as e:
+        logger.error(f"Async recommendation generation failed for '{model_provider}': {e}")
+        return None
+
 
 async def generate_course_recommendations_async(student, available_courses, model_provider="gemini"):
     """
-    Generates course recommendations using the specified LLM provider (ASYNC VERSION).
-    Runs all subject group generations in parallel.
+    Generates course recommendations and skillset by running separate tasks in parallel.
     """
     college = student.college
     student_semester = student.semester
     
     enriched_responses = await sync_to_async(map_option_values_to_text)(student)
 
+    # STEP 1: Initialize the correct AI client
     client = None
     model_name = None
     if model_provider == "gemini":
@@ -179,6 +174,23 @@ async def generate_course_recommendations_async(student, available_courses, mode
 
     if not client:
         return {"error": f"Failed to initialize the '{model_provider}' async client."}
+    
+    all_tasks = []
+    skillset_prompt = f"""
+You are an expert academic advisor.
+Based ONLY on the student's survey responses provided below, identify and list the skills the student either possesses or is interested in developing.
+
+**Student's Survey Responses:**
+{json.dumps(enriched_responses, indent=2)}
+
+**Output Format:**
+Return a single, clean JSON object with one key, "skillset".
+{{
+  "skillset": ["Skill derived from survey A", "Skill derived from survey B", ...]
+}}
+"""
+    skillset_task = _generate_skillset_async(client, model_provider, model_name, skillset_prompt)
+    all_tasks.append(skillset_task)
 
     grouped_courses = {}
     for course in available_courses:
@@ -186,114 +198,59 @@ async def generate_course_recommendations_async(student, available_courses, mode
         grouped_courses.setdefault(group, []).append(course)
 
     group_names = grouped_courses.keys()
-    
-    def _get_settings_sync():
-        qs = RecommendationSetting.objects.filter(
-            college=college, subject_group_name__in=group_names
-        )
-        return list(qs)
-
-    settings_list = await sync_to_async(_get_settings_sync)()
+    settings_list = await sync_to_async(list)(RecommendationSetting.objects.filter(college=college, subject_group_name__in=group_names))
     settings_map = {s.subject_group_name: s for s in settings_list}
-
-    generation_tasks = []
-
-    gemini_schema = {
-        "type": "object",
-        "properties": {
-            "recommendations": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "SubjectName": {"type": "string"},
-                        "PaperName": {"type": "string"}
-                    },
-                    "required": ["SubjectName", "PaperName"]
-                }
-            },
-            "skillset": {
-                "type": "array",
-                "items": {"type": "string"}
-            }
-        },
-        "required": ["recommendations", "skillset"]
-    }
+    
+    course_task_groups = [] 
 
     for group_name, courses_in_group in grouped_courses.items():
-        filtered_courses_for_semester = courses_in_group
-        if student_semester:
-            filtered_courses_for_semester = [
-                c for c in courses_in_group
-                if c.get('SemesterName', '').lower() == student_semester.lower()
-            ]
-
-        if not filtered_courses_for_semester:
-            continue
-
+        filtered_courses = [c for c in courses_in_group if c.get('SemesterName', '').lower() == student_semester.lower()]
         setting = settings_map.get(group_name)
-        if not setting:
+        if not filtered_courses or not setting:
             continue
 
         num_recommend = setting.num_recommendations
-
-        prompt_content = f"""
-You are an expert academic advisor. Your task is to perform two distinct actions based on the provided data.
+        
+        recs_prompt = f"""
+You are an expert academic advisor.
+Analyze the student's preferences from their survey responses and recommend exactly {num_recommend} of the most suitable courses from the "Available Courses" list below.
 
 **Student's Survey Responses:**
 {json.dumps(enriched_responses, indent=2)}
 
-**Available {group_name} Courses (for the student's semester):**
-{json.dumps(filtered_courses_for_semester, indent=2)}
-
-**Instructions:**
-1.  **Course Recommendation**: Analyze the student's preferences from their survey responses and recommend exactly {num_recommend} of the most suitable courses from the "Available {group_name} Courses" list.
-2.  **Skillset Identification**: Based ONLY on the "Student's Survey Responses", identify and list the skills the student either possesses or is interested in developing. This skillset should be derived directly from their answers, not from the courses.
+**Available {group_name} Courses:**
+{json.dumps(filtered_courses, indent=2)}
 
 **Output Format:**
-Return a single, clean JSON object. Respond ONLY with valid JSON.
+Return a single, clean JSON object with one key, "recommendations".
 {{
   "recommendations": [
     {{"SubjectName": "...", "PaperName": "..."}},
     ...
-  ],
-  "skillset": ["Skill derived from survey A", "Skill derived from survey B", ...]
+  ]
 }}
 """
-        
-        generation_tasks.append(
-            (group_name, _generate_for_group(
-                client, model_provider, model_name, prompt_content, gemini_schema
-            ))
-        )
+        rec_task = _generate_recs_for_group_async(client, model_provider, model_name, recs_prompt)
+        all_tasks.append(rec_task)
+        course_task_groups.append(group_name)
 
-    if not generation_tasks:
-         return {
-            "recommendations": [],
-            "skillset": []
-        }
+    task_results = await asyncio.gather(*all_tasks)
 
-    task_coroutines = [task for _, task in generation_tasks]
-    task_results = await asyncio.gather(*task_coroutines)
-
+    final_skillset = task_results[0] if task_results and task_results[0] is not None else []
     final_recommendations = []
-    all_skillsets = set()
 
-    for i, validated_data in enumerate(task_results):
-        group_name = generation_tasks[i][0] 
-        
-        if validated_data:
-            try:
-                for rec in validated_data.recommendations:
-                    rec['SubjectGroupName'] = group_name
-                final_recommendations.extend(validated_data.recommendations)
-                all_skillsets.update(validated_data.skillset)
-            except Exception as e:
-                 logger.error(f"Failed to process validated data for group {group_name}: {e}")
+    course_results = task_results[1:]
+    for i, rec_list in enumerate(course_results):
+        if rec_list:
+            group_name = course_task_groups[i]
+            for rec in rec_list:
+                rec['SubjectGroupName'] = group_name
+            final_recommendations.extend(rec_list)
         else:
-            logger.warning(f"Generation task for group '{group_name}' failed and returned None.")
-
+            group_name = course_task_groups[i]
+            logger.warning(f"Recommendation task for group '{group_name}' failed and returned None.")
+            
     return {
         "recommendations": final_recommendations,
-        "skillset": list(all_skillsets)
+        "skillset": list(set(final_skillset)) 
     }

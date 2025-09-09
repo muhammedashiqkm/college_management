@@ -45,7 +45,6 @@ class StudentSerializer(serializers.ModelSerializer):
                 f"A student with ID '{student_id}' already exists in college '{college_name}'."
             )
         
-        # --- OPTIMIZATION: Pass the fetched college object to the create method ---
         data['college_instance'] = college
         return data
 
@@ -53,9 +52,8 @@ class StudentSerializer(serializers.ModelSerializer):
         """
         Create a new student instance using the validated data.
         """
-        # The college instance is now passed from the validate method
         college_instance = validated_data.pop('college_instance')
-        validated_data.pop('college_name', None) # Remove college_name as it's not a model field
+        validated_data.pop('college_name', None)
         
         student = Student.objects.create(college=college_instance, **validated_data)
         return student

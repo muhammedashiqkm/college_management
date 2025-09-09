@@ -1,4 +1,3 @@
-# settings.py
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -12,7 +11,6 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
-# RECOMMENDATION: Improved parsing to handle whitespace
 allowed_hosts_str = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_str.split(",") if host.strip()]
 
@@ -102,8 +100,6 @@ CACHES = {
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL_NAME = os.environ.get('GEMINI_MODEL_NAME')
 
-# --- ADD THE FOLLOWING LINES ---
-
 # OpenAI Settings
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL_NAME = os.environ.get('OPENAI_MODEL_NAME')
@@ -122,11 +118,9 @@ JAZZMIN_SETTINGS = {
     "welcome_sign": "Welcome to the College Recommendation Admin",
     "copyright": "Meshilogic",
 
-    # Theme + Dark mode
-    "theme": "darkly",  # options: cerulean, cosmo, cyborg, darkly, slate, solar, etc.
-    "show_ui_builder": True,  # Lets you preview and customize themes in admin
+    "theme": "darkly", 
+    "show_ui_builder": True,  
 
-    # Icons for apps/models
     "icons": {
         "auth.User": "fas fa-user",
         "core.College": "fas fa-university",
@@ -137,7 +131,7 @@ JAZZMIN_SETTINGS = {
         "core.CollegeUser": "fas fa-users-cog",
     },
 
-    # Navigation
+
     "topmenu_links": [
         {"name": "Dashboard", "url": "admin:index", "permissions": ["auth.view_user"]},
         {"model": "core.College"},
@@ -145,7 +139,6 @@ JAZZMIN_SETTINGS = {
         {"app": "core"},
     ],
 
-    # Side Menu
     "order_with_respect_to": ["core", "auth"],
     "hide_apps": [],
     "hide_models": [],
@@ -209,16 +202,14 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    # RECOMMENDATION: Removed duplicate permission class
-    'DEFAULT_PERMISSION_CLASSES': [
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    ],
+    )
 }
+
 
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/panel/'

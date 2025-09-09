@@ -1,6 +1,4 @@
-# Use official Python base image
 FROM python:3.11-slim-bullseye
-
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -18,4 +16,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["gunicorn", "college_management.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
+CMD ["uvicorn", "college_management.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

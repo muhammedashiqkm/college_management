@@ -75,6 +75,7 @@ def get_college_questions(request, college, **kwargs):
     return Response(serializer.data)
 
 
+# --- UPDATED: _run_async_submission with new logic ---
 async def _run_async_submission(request_data, college):
     student_id = request_data.get('student_id')
     answers = request_data.get('answers')
@@ -117,15 +118,16 @@ async def _run_async_submission(request_data, college):
             available_courses = response.json()
         await sync_to_async(cache.set)(cache_key, available_courses, timeout=3600)
 
-    recommendations_data = await generate_course_recommendations_async(
+    # --- THIS SECTION IS UPDATED ---
+    result_data = await generate_course_recommendations_async(
         student, available_courses, model_provider=model_provider
     )
 
-    if 'error' in recommendations_data:
-        raise Exception(f"Service Error: {recommendations_data['error']}")
+    if 'error' in result_data:
+        raise Exception(f"Service Error: {result_data['error']}")
 
-    courses_data = recommendations_data.get("recommendations", [])
-    skillset_data = recommendations_data.get("skillset", [])
+    courses_data = result_data.get("recommendations", [])
+    skillset_data = result_data.get("skillset", [])
 
     student.recommendations = {
         "courses": courses_data,
@@ -137,8 +139,6 @@ async def _run_async_submission(request_data, college):
         "recommendations": courses_data,
         "skillset": list(skillset_data)
     }
-
-
 
 
 @csrf_exempt
@@ -217,8 +217,6 @@ def get_college_recommendations(request, college, **kwargs):
         "recommendations": serializer.data
     })
 
-
-# --- HTML View (Unchanged) ---
 
 @login_required
 def college_user_panel(request):
