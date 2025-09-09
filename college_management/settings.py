@@ -86,14 +86,16 @@ else:
                 'PASSWORD': os.environ.get("DB_PASSWORD"),
                 'HOST': os.environ.get("DB_HOST"),
                 'PORT': os.environ.get("DB_PORT", "5432"),
-                'CONN_MAX_AGE': int(os.environ.get("DB_CONN_MAX_AGE", 60)),
             }
         }
 
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
     }
 }
 
@@ -159,10 +161,6 @@ JAZZMIN_UI_TWEAKS = {
     "navbar_fixed": True,
     "sidebar_fixed": True,
 }
-
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
-
 
 
 AUTH_PASSWORD_VALIDATORS = [

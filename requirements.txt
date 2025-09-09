@@ -10,5 +10,7 @@ python-dotenv
 djangorestframework-simplejwt
 openai
 django-jazzmin
-celery
-redis
+httpx 
+asgiref
+uvicorn
+django-redis

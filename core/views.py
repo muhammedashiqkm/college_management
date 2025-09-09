@@ -6,14 +6,22 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from dotenv import load_dotenv
 from functools import wraps
-import requests
+import httpx     
+from asgiref.sync import  sync_to_async
 import logging
+import asyncio
+import json 
+from django.http import JsonResponse 
+from django.views.decorators.csrf import csrf_exempt 
+from rest_framework_simplejwt.authentication import JWTAuthentication 
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError 
+
 from .models import College, Question, Student, Option
 from .serializers import (
     QuestionSerializer, StudentSerializer,
     StudentRecommendationSerializer
 )
-from .tasks import generate_recommendations_task
+from .services import generate_course_recommendations_async
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -42,9 +50,11 @@ def get_college_by_name(view_func):
     return _wrapped_view
 
 
+
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def register_student(request):
+    """API: Register a new student. (Sync DRF view)"""
     serializer = StudentSerializer(data=request.data)
     if serializer.is_valid():
         student = serializer.save()
@@ -59,111 +69,128 @@ def register_student(request):
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
 def get_college_questions(request, college, **kwargs):
+    """API: Get questions for a specific college. (Sync DRF view)"""
     questions = Question.objects.filter(college=college).prefetch_related('option_set')
     serializer = QuestionSerializer(questions, many=True)
     return Response(serializer.data)
 
 
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
-@get_college_by_name
-def submit_answers(request, college, **kwargs):
-    student_id = request.data.get('student_id')
-    answers = request.data.get('answers')
-    
-    model_provider = request.data.get('model', 'gemini').lower()
+async def _run_async_submission(request_data, college):
+    student_id = request_data.get('student_id')
+    answers = request_data.get('answers')
+    model_provider = request_data.get('model', 'gemini').lower()
     ALLOWED_MODELS = ['gemini', 'openai', 'deepseek']
 
     if model_provider not in ALLOWED_MODELS:
-        return Response(
-            {'error': f"Invalid model provider. Please choose from: {', '.join(ALLOWED_MODELS)}."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        raise ValueError(f"Invalid model provider. Please choose from: {', '.join(ALLOWED_MODELS)}.")
 
     if not all([student_id, answers]):
-        return Response(
-            {'error': 'student_id and answers are required.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        raise ValueError("student_id and answers are required.")
 
     try:
-        student = Student.objects.get(student_id=student_id, college=college)
+        student_getter = Student.objects.select_related('college').get
+        student = await sync_to_async(student_getter)(student_id=student_id, college=college)
+        
     except Student.DoesNotExist:
-        return Response(
-            {'error': f"Student with ID '{student_id}' not found in college '{college.name}'."},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        raise Student.DoesNotExist(f"Student with ID '{student_id}' not found in college '{college.name}'.")
 
-    valid_question_ids = set(Question.objects.filter(college=college).values_list('question_id', flat=True))
+    valid_question_ids_qs = Question.objects.filter(college=college).values_list('question_id', flat=True)
+    valid_question_ids = set(await sync_to_async(list)(valid_question_ids_qs))
     submitted_question_ids = set(answers.keys())
-
     if not submitted_question_ids.issubset(valid_question_ids):
         invalid_ids = submitted_question_ids - valid_question_ids
-        return Response(
-            {'error': f"The following question IDs do not belong to college '{college.name}': {list(invalid_ids)}"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    valid_options = Option.objects.filter(
-        question__college=college,
-        question__question_id__in=submitted_question_ids
-    ).values('question__question_id', 'value')
-
-    valid_option_set = {(opt['question__question_id'], opt['value']) for opt in valid_options}
-
-    invalid_answers = []
+        raise ValueError(f"The following question IDs do not belong to college '{college.name}': {list(invalid_ids)}")
+    valid_options_qs = Option.objects.filter(question__college=college, question__question_id__in=submitted_question_ids).values('question__question_id', 'value')
+    valid_option_set = await sync_to_async(lambda: {(opt['question__question_id'], opt['value']) for opt in valid_options_qs})()
     for q_id, ans_val in answers.items():
         if (q_id, ans_val) not in valid_option_set:
-            invalid_answers.append({q_id: ans_val})
-
-    if invalid_answers:
-        invalid_question_ids = [list(q.keys())[0] for q in invalid_answers]
-        options_for_invalid_qs = Option.objects.filter(
-            question__college=college,
-            question__question_id__in=invalid_question_ids
-        ).values('question__question_id', 'value')
-
-        available_options = {}
-        for option in options_for_invalid_qs:
-            q_id = option['question__question_id']
-            if q_id not in available_options:
-                available_options[q_id] = []
-            available_options[q_id].append(option['value'])
-
-        return Response({
-            'error': "Invalid option provided for one or more questions.",
-            'details': {
-                'submitted_invalid_answers': invalid_answers,
-                'available_valid_options': available_options
-            }
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+            raise ValueError(f"Invalid option provided for question {q_id}: {ans_val}")
 
     student.responses = answers
-    student.recommendation_status = 'PENDING'
-    student.recommendation_error = None
-    student.save(update_fields=['responses', 'recommendation_status', 'recommendation_error']) 
+    cache_key = f"courses_{college.college_id}"
+    available_courses = await sync_to_async(cache.get)(cache_key)
+    
+    if not available_courses:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{college.base_url}/website/ReadCourseDetails")
+            response.raise_for_status() 
+            available_courses = response.json()
+        await sync_to_async(cache.set)(cache_key, available_courses, timeout=3600)
 
-    generate_recommendations_task.delay(
-        student_id=student.id,
-        college_id=college.id,
-        model_provider=model_provider
+    recommendations_data = await generate_course_recommendations_async(
+        student, available_courses, model_provider=model_provider
     )
 
-    return Response({
-        "status": "pending",
-        "message": "Your answers have been submitted. Recommendations are being generated and will be available shortly."
-    }, status=status.HTTP_202_ACCEPTED)
+    if 'error' in recommendations_data:
+        raise Exception(f"Service Error: {recommendations_data['error']}")
+
+    courses_data = recommendations_data.get("recommendations", [])
+    skillset_data = recommendations_data.get("skillset", [])
+
+    student.recommendations = {
+        "courses": courses_data,
+        "skillset": list(skillset_data) 
+    }
+    await sync_to_async(student.save)()
+
+    return {
+        "recommendations": courses_data,
+        "skillset": list(skillset_data)
+    }
+
+
+
+
+@csrf_exempt
+async def submit_answers(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method is allowed.'}, status=405)
+
+    auth = JWTAuthentication()
+    try:
+        user_auth_tuple = await sync_to_async(auth.authenticate)(request)
+        if not user_auth_tuple:
+            return JsonResponse({'error': 'Authentication credentials were not provided.'}, status=401)
+        request.user = user_auth_tuple[0]
+    except (InvalidToken, TokenError) as e:
+        return JsonResponse({'error': f'Invalid token: {str(e)}'}, status=401)
+    except Exception as e:
+        return JsonResponse({'error': f'Authentication Failed: {str(e)}'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
+
+    college_name = data.get('college_name')
+    if not college_name:
+        return JsonResponse({'error': 'A college_name must be provided in the request body.'}, status=400)
+    try:
+        college = await sync_to_async(College.objects.get)(name=college_name)
+    except College.DoesNotExist:
+        return JsonResponse({'error': f"College with name '{college_name}' not found."}, status=404)
+
+    try:
+        result_data = await _run_async_submission(data, college)
+        return JsonResponse(result_data, status=200)
+    
+    except Student.DoesNotExist as e:
+        return JsonResponse({'error': str(e)}, status=404)
+    except ValueError as e: 
+        return JsonResponse({'error': str(e)}, status=400)
+    except httpx.RequestError as e:
+        logger.error(f"Failed to fetch courses for college '{college.name}': {e}")
+        return JsonResponse({'error': 'Failed to fetch course list from the college.'}, status=502)
+    except Exception as e:
+        logger.error(f"An unhandled error occurred in async submission: {e}")
+        return JsonResponse({'error': 'Service unavailable.', 'details': str(e)}, status=503)
+
 
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
-@get_college_by_name
+@get_college_by_name 
 def get_student_recommendation(request, student_id, college, **kwargs):
-    """
-    API: Get stored recommendations for a specific student.
-    This now checks the generation status (Pending, Completed, Failed).
-    """
     try:
         student = Student.objects.get(student_id=student_id, college=college)
     except Student.DoesNotExist:
@@ -171,36 +198,12 @@ def get_student_recommendation(request, student_id, college, **kwargs):
             {'error': f"Student with ID '{student_id}' not found in college '{college.name}'."},
             status=status.HTTP_404_NOT_FOUND
         )
-
-    # --- FIX ---
-    # Renamed this variable from 'status' to 'job_status' to avoid
-    # conflicting with the imported 'status' module from rest_framework.
-    job_status = student.recommendation_status
-
-    if job_status == 'COMPLETED':
-        return Response({
-            "status": "COMPLETED",
-            "recommendations": student.recommendations
-        }, status=status.HTTP_200_OK)
-
-    elif job_status == 'PENDING':
-        return Response({
-            "status": "PENDING",
-            "message": "Recommendations are still being generated. Please check back later."
-        }, status=status.HTTP_202_ACCEPTED)
-
-    elif job_status == 'FAILED':
-        return Response({
-            "status": "FAILED",
-            "error": "Failed to generate recommendations.",
-            "detail": student.recommendation_error
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    else:
+    if not student.recommendations:
         return Response(
-            {'error': 'No answers have been submitted for this student yet.'},
+            {'error': 'No recommendations have been generated for this student yet.'},
             status=status.HTTP_404_NOT_FOUND
         )
+    return Response({"recommendations": student.recommendations})
 
 
 @api_view(['GET'])
@@ -215,10 +218,11 @@ def get_college_recommendations(request, college, **kwargs):
     })
 
 
+# --- HTML View (Unchanged) ---
+
 @login_required
 def college_user_panel(request):
-    if not hasattr(request, 'user') or not hasattr(request.user, 'collegeuser'):
+    if not hasattr(request.user, 'collegeuser'):
         return render(request, 'unauthorized.html')
-
     students = Student.objects.filter(college=request.user.collegeuser.college)
     return render(request, 'college_user_panel.html', {'students': students})

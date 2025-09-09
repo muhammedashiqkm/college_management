@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 from .models import College, Question, Option, Student, CollegeUser, RecommendationSetting
 
 
-# --- Inlines ---
 class QuestionInline(admin.TabularInline):
     model = Question
     extra = 1
@@ -36,7 +35,6 @@ class StudentInline(admin.TabularInline):
         return False
 
 
-# --- Main Admin Models ---
 @admin.register(College)
 class CollegeAdmin(admin.ModelAdmin):
     list_display = ("name", "college_id", "base_url")
@@ -56,11 +54,11 @@ class QuestionAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("student_id", "name", "college", "semester", "recommendation_status", "created_at")
+    list_display = ("student_id", "name", "college", "semester", "created_at")
     list_display_links = ("student_id", "name")
-    list_filter = ("college", "department", "semester", "recommendation_status")
+    list_filter = ("college", "department", "semester")
     search_fields = ("student_id", "name", "college__name")
-    readonly_fields = ("created_at", "responses", "recommendations", "recommendation_status", "recommendation_error")
+    readonly_fields = ("created_at", "recommendations")
     ordering = ("-created_at",)
     autocomplete_fields = ("college",)
     fieldsets = (
@@ -70,9 +68,7 @@ class StudentAdmin(admin.ModelAdmin):
         ("Survey Data", {
             "fields": (
                 "responses", 
-                "recommendations", 
-                "recommendation_status", 
-                "recommendation_error"   
+                "recommendations"   
             ),
             "classes": ("collapse",),
         }),
@@ -86,7 +82,6 @@ class RecommendationSettingAdmin(admin.ModelAdmin):
     ordering = ("college", "subject_group_name")
 
 
-# --- Custom User Admin ---
 class CollegeUserInline(admin.StackedInline):
     model = CollegeUser
     can_delete = False
