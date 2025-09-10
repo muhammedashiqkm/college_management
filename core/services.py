@@ -158,8 +158,7 @@ async def generate_course_recommendations_async(student, available_courses, mode
     student_semester = student.semester
     
     enriched_responses = await sync_to_async(map_option_values_to_text)(student)
-
-    # STEP 1: Initialize the correct AI client
+    
     client = None
     model_name = None
     if model_provider == "gemini":

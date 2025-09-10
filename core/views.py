@@ -75,7 +75,6 @@ def get_college_questions(request, college, **kwargs):
     return Response(serializer.data)
 
 
-# --- UPDATED: _run_async_submission with new logic ---
 async def _run_async_submission(request_data, college):
     student_id = request_data.get('student_id')
     answers = request_data.get('answers')
@@ -118,7 +117,6 @@ async def _run_async_submission(request_data, college):
             available_courses = response.json()
         await sync_to_async(cache.set)(cache_key, available_courses, timeout=3600)
 
-    # --- THIS SECTION IS UPDATED ---
     result_data = await generate_course_recommendations_async(
         student, available_courses, model_provider=model_provider
     )

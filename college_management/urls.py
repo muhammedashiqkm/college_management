@@ -9,10 +9,11 @@ from rest_framework_simplejwt.views import (
 )
 
 urlpatterns = [
+    path('admin/logout/', auth_views.LogoutView.as_view(next_page='/admin/'), name='admin_logout'),
     path('admin/', admin.site.urls),
     path('', RedirectView.as_view(url='/login/')),
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('logout/', auth_views.LogoutView.as_view(next_page='/login/'), name='logout'),
     path('panel/', college_user_panel, name='college-panel'),
     path('api/', include('core.urls')),
     path('api-auth/', include('rest_framework.urls')),
