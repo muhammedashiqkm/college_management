@@ -73,3 +73,6 @@ yarn-error.log
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+
+myenv/

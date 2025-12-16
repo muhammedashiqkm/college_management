@@ -18,12 +18,9 @@ class RecommendationSetting(models.Model):
         return f"{self.college.name} - {self.subject_group_name} ({self.num_recommendations})"
 
 class Question(models.Model):
-    question_id = models.CharField(max_length=50)
     college = models.ForeignKey(College, on_delete=models.CASCADE)
     text = models.TextField()
-
-    class Meta:
-        unique_together = ('college', 'question_id')
+    
 
     def __str__(self):
         return f"{self.college.name} - {self.text[:50]}"

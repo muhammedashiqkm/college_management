@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import College, Question, Option, Student, CollegeUser
+from .models import College, Question, Option, Student, CollegeUser,  RecommendationSetting
 
 class CollegeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,14 +10,20 @@ class CollegeSerializer(serializers.ModelSerializer):
 class OptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Option
-        fields = ['text', 'value']
+        fields = ['id','text', 'value']
 
 class QuestionSerializer(serializers.ModelSerializer):
+    question_id = serializers.IntegerField(source='id', read_only=True)
     options = OptionSerializer(many=True, read_only=True, source='option_set')
     
     class Meta:
         model = Question
         fields = ['question_id', 'text', 'options']
+
+class RecommendationSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecommendationSetting
+        fields = ['id', 'subject_group_name', 'num_recommendations']
 
 class StudentSerializer(serializers.ModelSerializer):
     college_name = serializers.CharField(write_only=True)

@@ -11,15 +11,18 @@ from asgiref.sync import  sync_to_async
 import logging
 import asyncio
 import json 
+from django.db import transaction
 from django.http import JsonResponse 
 from django.views.decorators.csrf import csrf_exempt 
 from rest_framework_simplejwt.authentication import JWTAuthentication 
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError 
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
-from .models import College, Question, Student, Option
+from .models import College, Question, Student, Option, RecommendationSetting
 from .serializers import (
     QuestionSerializer, StudentSerializer,
-    StudentRecommendationSerializer
+    StudentRecommendationSerializer,RecommendationSettingSerializer
 )
 from .services import generate_course_recommendations_async
 
@@ -65,14 +68,105 @@ def register_student(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([IsAuthenticated])
 @get_college_by_name
 def get_college_questions(request, college, **kwargs):
-    """API: Get questions for a specific college. (Sync DRF view)"""
     questions = Question.objects.filter(college=college).prefetch_related('option_set')
     serializer = QuestionSerializer(questions, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@get_college_by_name
+def add_questions(request, college, **kwargs):
+    """
+    Creates questions dynamically. 
+    Ignores any 'question_id' sent in the payload and assigns new DB IDs.
+    """
+    data = request.data
+    if not isinstance(data, list):
+        return Response({'error': 'Payload must be a list.'}, status=400)
+
+    created_questions = []
+
+    try:
+        with transaction.atomic():
+            for item in data:
+                q_text = item.get('text') or item.get('question text')
+                options_data = item.get('options', [])
+
+                if not q_text:
+                    raise ValueError("Question text is required.")
+
+                question = Question.objects.create(college=college, text=q_text)
+
+                for opt in options_data:
+                    Option.objects.create(
+                        question=question,
+                        text=opt.get('text'),
+                        value=opt.get('value')
+                    )
+                
+                created_questions.append(question)
+
+    except ValueError as e:
+        return Response({'error': str(e)}, status=400)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+    serializer = QuestionSerializer(created_questions, many=True)
+    return Response({
+        'message': 'Questions created successfully',
+        'data': serializer.data
+    }, status=201)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_question(request, question_pk):
+    """
+    Updates text and replaces options for a specific question ID.
+    URL: /api/question/update/<int:question_pk>/
+    """
+    question = get_object_or_404(Question, pk=question_pk)
+    data = request.data
+
+    new_text = data.get('text') or data.get('question text')
+    new_options = data.get('options')
+
+    try:
+        with transaction.atomic():
+            if new_text:
+                question.text = new_text
+                question.save()
+
+            if new_options is not None:
+                question.option_set.all().delete()
+                for opt in new_options:
+                    Option.objects.create(
+                        question=question,
+                        text=opt.get('text'),
+                        value=opt.get('value')
+                    )
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+    serializer = QuestionSerializer(question)
+    return Response(serializer.data)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_question(request, question_pk):
+    """
+    Deletes a question by its dynamic ID.
+    URL: /api/question/delete/<int:question_pk>/
+    """
+    question = get_object_or_404(Question, pk=question_pk)
+    question.delete()
+    return Response({'message': 'Question deleted successfully'}, status=200)
 
 
 async def _run_async_submission(request_data, college):
@@ -182,7 +276,85 @@ async def submit_answers(request):
     except Exception as e:
         logger.error(f"An unhandled error occurred in async submission: {e}")
         return JsonResponse({'error': 'Service unavailable.', 'details': str(e)}, status=503)
+    
 
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+@get_college_by_name
+def get_recommendation_settings(request, college, **kwargs):
+    """
+    Get all recommendation settings for a specific college.
+    URL: /api/settings/<college_name>/
+    """
+    settings = RecommendationSetting.objects.filter(college=college)
+    serializer = RecommendationSettingSerializer(settings, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+@get_college_by_name
+def add_recommendation_setting(request, college, **kwargs):
+    """
+    Add a new recommendation setting to a college.
+    URL: /api/settings/add/<college_name>/
+    Body: {"subject_group_name": "Core", "num_recommendations": 3}
+    """
+    serializer = RecommendationSettingSerializer(data=request.data)
+    if serializer.is_valid():
+        group_name = serializer.validated_data['subject_group_name']
+        if RecommendationSetting.objects.filter(college=college, subject_group_name=group_name).exists():
+            return Response(
+                {'error': f"Setting for '{group_name}' already exists in this college."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        serializer.save(college=college)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT'])
+@permission_classes([permissions.IsAuthenticated])
+def update_recommendation_setting(request, pk):
+    """
+    Update an existing setting (num_recommendations OR subject_group_name).
+    URL: /api/settings/update/<int:pk>/
+    """
+    try:
+        setting = RecommendationSetting.objects.get(pk=pk)
+    except RecommendationSetting.DoesNotExist:
+        return Response({'error': 'Setting not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    new_group_name = request.data.get('subject_group_name')
+    
+    if new_group_name and new_group_name != setting.subject_group_name:
+        if RecommendationSetting.objects.filter(college=setting.college, subject_group_name=new_group_name).exclude(pk=pk).exists():
+             return Response(
+                {'error': f"A setting for '{new_group_name}' already exists in this college."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    serializer = RecommendationSettingSerializer(setting, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_recommendation_setting(request, pk):
+    """
+    Delete a setting by its ID (pk).
+    URL: /api/settings/delete/<int:pk>/
+    """
+    try:
+        setting = RecommendationSetting.objects.get(pk=pk)
+    except RecommendationSetting.DoesNotExist:
+        return Response({'error': 'Setting not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    setting.delete()
+    return Response({'message': 'Setting deleted successfully.'}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])

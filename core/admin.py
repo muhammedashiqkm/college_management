@@ -45,11 +45,11 @@ class CollegeAdmin(admin.ModelAdmin):
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ("text", "college", "question_id")
+    list_display = ("text", "college")
     list_filter = ("college",)
-    search_fields = ("text", "question_id", "college__name")
+    search_fields = ("text", "college__name")
     inlines = [OptionInline]
-    ordering = ("college", "question_id")
+    ordering = ("college",)
 
 
 @admin.register(Student)

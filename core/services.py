@@ -64,13 +64,13 @@ def map_option_values_to_text(student):
 
     qids = student.responses.keys()
     questions = Question.objects.filter(
-        question_id__in=qids, college=student.college
+        pk__in=qids, college=student.college
     ).prefetch_related('option_set')
 
-    question_map = {q.question_id: q for q in questions}
+    question_map = {str(q.pk): q for q in questions}
 
     for qid, selected_value in student.responses.items():
-        question = question_map.get(qid)
+        question = question_map.get(str(qid))
         if question:
             try:
                 option = next(
