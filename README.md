@@ -4,20 +4,20 @@ This project is an AI-powered, multi-college course recommendation system built 
 
 The system is designed to be asynchronous, scalable, and easy to deploy using Docker.
 
-
-
 ## API Endpoints
 
 **Authentication**: All endpoints require a JWT Bearer token. First, obtain a token by sending a `POST` request to `/api/token/` with your superuser credentials.
 
-### 1\. Register a Student
+---
 
-  * **Method**: `POST`
-  * **URL**: `/api/register-student/`
-  * **Auth**: `Bearer <token>`
+### 1. Student Registration
+
+#### Register a Student
+* **Method**: `POST`
+* **URL**: `/api/register-student/`
+* **Auth**: `Bearer <token>`
 
 **Request Body**
-
 ```json
 {
     "student_id": "S12345",
@@ -26,7 +26,7 @@ The system is designed to be asynchronous, scalable, and easy to deploy using Do
     "semester": "Semester 3",
     "college_name": "Example College"
 }
-```
+````
 
 **Success Response (201 Created)**
 
@@ -37,80 +37,161 @@ The system is designed to be asynchronous, scalable, and easy to deploy using Do
 }
 ```
 
-**Error Response (400 Bad Request)**
+-----
 
-```json
-{
-    "non_field_errors": [
-        "A student with ID 'S12345' already exists in college 'Example College'."
-    ]
-}
-```
+### 2\. Question Management
 
-### 2\. Get College Questions
+#### Get College Questions
 
   * **Method**: `GET`
   * **URL**: `/api/questions/<college_name>/`
   * **Auth**: `Bearer <token>`
 
-**URL Parameter**: `college_name` (e.g., `Example%20College`)
-
 **Success Response (200 OK)**
+*Note: `question_id` is now a system-generated integer.*
 
 ```json
 [
     {
-        "question_id": "Q1",
+        "question_id": 101,
         "text": "How interested are you in programming?",
         "options": [
-            {
-                "text": "Not Interested",
-                "value": "interest_1"
-            },
-            {
-                "text": "Very Interested",
-                "value": "interest_5"
-            }
+            { "id": 1, "text": "Not Interested", "value": "interest_1" },
+            { "id": 2, "text": "Very Interested", "value": "interest_5" }
         ]
     },
     {
-        "question_id": "Q2",
+        "question_id": 102,
         "text": "What is your preferred learning style?",
         "options": [
-            {
-                "text": "Theoretical",
-                "value": "style_theory"
-            },
-            {
-                "text": "Practical / Hands-on",
-                "value": "style_practical"
-            }
+            { "id": 3, "text": "Theoretical", "value": "style_theory" },
+            { "id": 4, "text": "Practical", "value": "style_practical" }
         ]
     }
 ]
 ```
 
-### 3\. Submit Answers & Get Recommendations
+#### Add Questions (Batch)
+
+  * **Method**: `POST`
+  * **URL**: `/api/questions/add/<college_name>/`
+  * **Description**: Adds a list of questions. Ignores input `question_id` (auto-generates DB ID).
+
+**Request Body**
+
+```json
+[
+    {
+        "text": "Do you enjoy math?",
+        "options": [
+            { "text": "Yes", "value": "yes" },
+            { "text": "No", "value": "no" }
+        ]
+    }
+]
+```
+
+#### Update Question
+
+  * **Method**: `PUT`
+  * **URL**: `/api/question/update/<int:question_pk>/`
+  * **Description**: Updates text and/or replaces options. Use the integer ID from the GET response.
+
+**Request Body**
+
+```json
+{
+    "text": "Updated Question Text?",
+    "options": [
+        { "text": "New Option A", "value": "val_a" },
+        { "text": "New Option B", "value": "val_b" }
+    ]
+}
+```
+
+#### Delete Question
+
+  * **Method**: `DELETE`
+  * **URL**: `/api/question/delete/<int:question_pk>/`
+
+-----
+
+### 3\. Recommendation Settings
+
+*Manage how many courses are recommended per subject group.*
+
+#### Get Settings
+
+  * **Method**: `GET`
+  * **URL**: `/api/settings/<college_name>/`
+
+**Success Response**
+
+```json
+[
+    {
+        "id": 1,
+        "subject_group_name": "Core CS",
+        "num_recommendations": 3
+    }
+]
+```
+
+#### Add Setting
+
+  * **Method**: `POST`
+  * **URL**: `/api/settings/add/<college_name>/`
+
+**Request Body**
+
+```json
+{
+    "subject_group_name": "Electives",
+    "num_recommendations": 2
+}
+```
+
+#### Update Setting
+
+  * **Method**: `PUT`
+  * **URL**: `/api/settings/update/<int:pk>/`
+  * **Description**: Update number or rename the group (checks for duplicates).
+
+**Request Body**
+
+```json
+{ "num_recommendations": 5 }
+```
+
+#### Delete Setting
+
+  * **Method**: `DELETE`
+  * **URL**: `/api/settings/delete/<int:pk>/`
+
+-----
+
+### 4\. Submission & Results
+
+#### Submit Answers & Get Recommendations
 
   * **Method**: `POST`
   * **URL**: `/api/submit-answers/`
   * **Auth**: `Bearer <token>`
 
 **Request Body**
+*Note: Keys in `answers` must match the integer `question_id`s.*
 
 ```json
 {
     "college_name": "Example College",
     "student_id": "S12345",
     "answers": {
-        "Q1": "interest_5",
-        "Q2": "style_practical"
+        "101": "interest_5",
+        "102": "style_practical"
     },
     "model": "gemini" 
 }
 ```
-
-*Note: The `model` field is optional and defaults to `gemini`. Other options are `openai` or `deepseek`.*
 
 **Success Response (200 OK)**
 
@@ -119,46 +200,32 @@ The system is designed to be asynchronous, scalable, and easy to deploy using Do
     "recommendations": [
         {
             "SubjectName": "Computer Science",
-            "PaperName": "Data Structures & Algorithms",
-            "SubjectGroupName": "Core CS"
-        },
-        {
-            "SubjectName": "Computer Science",
-            "PaperName": "Advanced Python Programming",
+            "PaperName": "Data Structures",
             "SubjectGroupName": "Core CS"
         }
     ],
     "skillset": [
         "Problem Solving",
-        "Logical Reasoning",
-        "Programming",
-        "Hands-on Learning"
+        "Logical Reasoning"
     ]
 }
 ```
 
-### 4\. Get Student's Saved Recommendation
+#### Get Student's Saved Recommendation
 
   * **Method**: `GET`
   * **URL**: `/api/student-recommendation/<student_id>/<college_name>/`
-  * **Auth**: `Bearer <token>`
 
 **Success Response (200 OK)**
 
 ```json
 {
     "recommendations": {
-        "courses": [
-            {
-                "SubjectName": "Computer Science",
-                "PaperName": "Data Structures & Algorithms",
-                "SubjectGroupName": "Core CS"
-            }
-        ],
-        "skillset": [
-            "Problem Solving",
-            "Programming"
-        ]
+        "courses": [ ... ],
+        "skillset": [ ... ]
     }
 }
+```
+
+```
 ```

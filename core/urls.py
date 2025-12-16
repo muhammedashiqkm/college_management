@@ -11,9 +11,9 @@ urlpatterns = [
     path('submit-answers/', views.submit_answers, name='submit-answers'),
     path('student-recommendation/<str:student_id>/<str:college_name>/', views.get_student_recommendation, name='student-recommendation'),
     path('college-recommendations/<str:college_name>/', views.get_college_recommendations, name='college-recommendations'),
-    path('api/settings/<str:college_name>/', views.get_recommendation_settings, name='get_settings'),
-    path('api/settings/add/<str:college_name>/', views.add_recommendation_setting, name='add_setting'),
-    path('api/settings/update/<int:pk>/', views.update_recommendation_setting, name='update_setting'),
-    path('api/settings/delete/<int:pk>/', views.delete_recommendation_setting, name='delete_setting'),
+    path('settings/<str:college_name>/', views.get_recommendation_settings, name='get_settings'),
+    path('settings/add/<str:college_name>/', views.add_recommendation_setting, name='add_setting'),
+    path('settings/update/<int:pk>/', views.update_recommendation_setting, name='update_setting'),
+    path('settings/delete/<int:pk>/', views.delete_recommendation_setting, name='delete_setting'),
     
 ]
