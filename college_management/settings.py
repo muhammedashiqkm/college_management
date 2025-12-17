@@ -215,9 +215,23 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/panel/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
 
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+CORS_ALLOWED_ORIGINS_ENV = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+
+if CORS_ALLOWED_ORIGINS_ENV == "*":
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = [] 
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        origin.strip() 
+        for origin in CORS_ALLOWED_ORIGINS_ENV.split(",") 
+        if origin.strip()
+    ]
+    
+    
+
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
 
 LOGGING = {
     'version': 1,
