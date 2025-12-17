@@ -49,14 +49,14 @@ class SkillsetSchema(BaseModel):
 
 def safe_parse_json(response_text: str):
     """Cleans and parses JSON text returned by LLMs."""
+    # Remove code blocks if present
     cleaned = response_text.strip().replace('```json', '').replace('```', '')
     return json.loads(cleaned)
 
 
 def map_option_values_to_text(student):
     """
-    Converts student's selected option values into human-readable text,
-    ensuring questions are matched within the student's college.
+    Converts student's selected option values into human-readable text.
     """
     enriched = {}
     if not student.responses:
@@ -82,17 +82,12 @@ def map_option_values_to_text(student):
                 logger.warning(
                     f"Data integrity issue: Selected value '{selected_value}' "
                     f"for Question '{question.text}' (ID: {qid}) "
-                    f"was not found for college '{student.college.name}'."
+                    f"was not found."
                 )
-                enriched[f"Question ID {qid}"] = (
-                    f"Selected value '{selected_value}' not found for this option set."
-                )
+                enriched[f"Question ID {qid}"] = f"Value '{selected_value}' not found."
         else:
-            logger.warning(
-                f"Data integrity issue: Question ID '{qid}' from student response "
-                f"was not found for college '{student.college.name}'."
-            )
-            enriched[f"Question ID {qid}"] = "Question not found for this college."
+            logger.warning(f"Question ID '{qid}' not found for college.")
+            enriched[f"Question ID {qid}"] = "Question not found."
     return enriched
 
 async def _generate_skillset_async(client, model_provider, model_name, prompt_content):
@@ -119,7 +114,7 @@ async def _generate_skillset_async(client, model_provider, model_name, prompt_co
         validated = SkillsetSchema.parse_obj(parsed_json)
         return validated.skillset
     except Exception as e:
-        logger.error(f"Async skillset generation failed for '{model_provider}': {e}")
+        logger.error(f"Async skillset generation failed for '{model_provider}': {str(e)}")
         return None
 
 async def _generate_recs_for_group_async(client, model_provider, model_name, prompt_content):
@@ -146,13 +141,14 @@ async def _generate_recs_for_group_async(client, model_provider, model_name, pro
         validated = CourseRecSchema.parse_obj(parsed_json)
         return validated.recommendations
     except Exception as e:
-        logger.error(f"Async recommendation generation failed for '{model_provider}': {e}")
+        logger.error(f"Async recommendation generation failed for '{model_provider}': {str(e)}")
         return None
 
 
 async def generate_course_recommendations_async(student, available_courses, model_provider="gemini"):
     """
     Generates course recommendations and skillset by running separate tasks in parallel.
+    Returns a dictionary with 'error' key if ANY LLM task fails.
     """
     college = student.college
     student_semester = student.semester
@@ -172,9 +168,10 @@ async def generate_course_recommendations_async(student, available_courses, mode
         model_name = settings.DEEPSEEK_MODEL_NAME
 
     if not client:
-        return {"error": f"Failed to initialize the '{model_provider}' async client."}
+        return {"error": f"Failed to initialize the '{model_provider}' async client. Check API keys."}
     
     all_tasks = []
+    
     skillset_prompt = f"""
 You are an expert academic advisor.
 Based ONLY on the student's survey responses provided below, identify and list the skills the student either possesses or is interested in developing.
@@ -185,12 +182,11 @@ Based ONLY on the student's survey responses provided below, identify and list t
 **Output Format:**
 Return a single, clean JSON object with one key, "skillset".
 {{
-  "skillset": ["Skill derived from survey A", "Skill derived from survey B", ...]
+  "skillset": ["Skill A", "Skill B", ...]
 }}
 """
     skillset_task = _generate_skillset_async(client, model_provider, model_name, skillset_prompt)
     all_tasks.append(skillset_task)
-
     grouped_courses = {}
     for course in available_courses:
         group = course.get('SubjectGroupName', 'Unknown')
@@ -212,7 +208,7 @@ Return a single, clean JSON object with one key, "skillset".
         
         recs_prompt = f"""
 You are an expert academic advisor.
-Analyze the student's preferences from their survey responses and recommend exactly {num_recommend} of the most suitable courses from the "Available Courses" list below.
+Analyze the student's preferences and recommend exactly {num_recommend} suitable courses from the list below.
 
 **Student's Survey Responses:**
 {json.dumps(enriched_responses, indent=2)}
@@ -235,19 +231,20 @@ Return a single, clean JSON object with one key, "recommendations".
 
     task_results = await asyncio.gather(*all_tasks)
 
-    final_skillset = task_results[0] if task_results and task_results[0] is not None else []
+    if any(res is None for res in task_results):
+        logger.error("LLM Generation stopped: One or more tasks failed/returned None.")
+        return {
+            "error": "LLM generation failed. Please check the server logs for details (e.g., API limits or parsing errors)."
+        }
+    
+    final_skillset = task_results[0]
     final_recommendations = []
 
     course_results = task_results[1:]
     for i, rec_list in enumerate(course_results):
-        if rec_list:
-            group_name = course_task_groups[i]
-            for rec in rec_list:
-                rec['SubjectGroupName'] = group_name
-            final_recommendations.extend(rec_list)
-        else:
-            group_name = course_task_groups[i]
-            logger.warning(f"Recommendation task for group '{group_name}' failed and returned None.")
+        for rec in rec_list:
+            rec['SubjectGroupName'] = group_name
+        final_recommendations.extend(rec_list)
             
     return {
         "recommendations": final_recommendations,

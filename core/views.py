@@ -29,7 +29,6 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-# --- Helper Decorator ---
 def get_college_by_name(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
@@ -53,7 +52,6 @@ def get_college_by_name(view_func):
     return _wrapped_view
 
 
-# --- Student Registration ---
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def register_student(request):
@@ -68,7 +66,6 @@ def register_student(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# --- Question Management (CRUD) ---
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -96,7 +93,6 @@ def add_questions(request, college, **kwargs):
     try:
         with transaction.atomic():
             for item in data:
-                # Handle "question text" or "text" keys
                 q_text = item.get('text') or item.get('question text')
                 options_data = item.get('options', [])
 
@@ -171,8 +167,6 @@ def delete_question(request, question_pk):
     return Response({'message': 'Question deleted successfully'}, status=200)
 
 
-# --- Recommendation Settings (CRUD) ---
-
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 @get_college_by_name
@@ -241,7 +235,6 @@ def delete_recommendation_setting(request, pk):
     return Response({'message': 'Setting deleted successfully.'}, status=status.HTTP_200_OK)
 
 
-# --- Async Submission Logic ---
 
 async def _run_async_submission(request_data, college):
     student_id = request_data.get('student_id')
@@ -262,24 +255,18 @@ async def _run_async_submission(request_data, college):
     except Student.DoesNotExist:
         raise Student.DoesNotExist(f"Student with ID '{student_id}' not found in college '{college.name}'.")
 
-    # --- FIX: Use 'id' (pk) instead of removed 'question_id' ---
-    
-    # 1. Fetch valid IDs (integers)
     valid_question_ids_qs = Question.objects.filter(college=college).values_list('id', flat=True)
     valid_question_ids = set(await sync_to_async(list)(valid_question_ids_qs))
     
-    # 2. Parse submitted keys as integers
     try:
         submitted_question_ids = set(int(k) for k in answers.keys())
     except ValueError:
         raise ValueError("All question keys in 'answers' must be valid integers.")
 
-    # 3. Validation
     if not submitted_question_ids.issubset(valid_question_ids):
         invalid_ids = submitted_question_ids - valid_question_ids
         raise ValueError(f"The following question IDs do not belong to college '{college.name}': {list(invalid_ids)}")
 
-    # 4. Fetch valid options using 'question__id'
     valid_options_qs = Option.objects.filter(
         question__college=college, 
         question__id__in=submitted_question_ids
@@ -289,14 +276,12 @@ async def _run_async_submission(request_data, college):
         (opt['question__id'], opt['value']) for opt in valid_options_qs
     })()
 
-    # 5. Check individual answers
     for q_id, ans_val in answers.items():
         if (int(q_id), ans_val) not in valid_option_set:
             raise ValueError(f"Invalid option provided for question {q_id}: {ans_val}")
 
     student.responses = answers
     
-    # --- Fetch Courses (Cache or API) ---
     cache_key = f"courses_{college.college_id}"
     available_courses = await sync_to_async(cache.get)(cache_key)
     
@@ -307,7 +292,6 @@ async def _run_async_submission(request_data, college):
             available_courses = response.json()
         await sync_to_async(cache.set)(cache_key, available_courses, timeout=3600)
 
-    # --- Generate Recommendations ---
     result_data = await generate_course_recommendations_async(
         student, available_courses, model_provider=model_provider
     )
@@ -374,8 +358,6 @@ async def submit_answers(request):
         logger.error(f"An unhandled error occurred in async submission: {e}")
         return JsonResponse({'error': 'Service unavailable.', 'details': str(e)}, status=503)
 
-
-# --- Reporting / View Recommendations ---
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
