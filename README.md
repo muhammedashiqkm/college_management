@@ -74,7 +74,7 @@ The system is designed to be asynchronous, scalable, and easy to deploy using Do
 #### Add Questions (Batch)
 
   * **Method**: `POST`
-  * **URL**: `/api/questions/add/<college_name>/`
+  * **URL**: `/api/question/add/<college_name>/`
   * **Description**: Adds a list of questions. Ignores input `question_id` (auto-generates DB ID).
 
 **Request Body**
@@ -160,7 +160,10 @@ The system is designed to be asynchronous, scalable, and easy to deploy using Do
 **Request Body**
 
 ```json
-{ "num_recommendations": 5 }
+    {
+        "subject_group_name": "Electives",
+        "num_recommendations": 2
+    }
 ```
 
 #### Delete Setting
