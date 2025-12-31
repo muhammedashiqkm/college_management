@@ -127,11 +127,7 @@ def add_questions(request, college, **kwargs):
 @permission_classes([IsAuthenticated])
 def update_question(request, question_pk):
     """
-    Updates text and smartly manages options for a specific question ID.
-    - If 'options' is provided:
-      1. Updates existing options (if 'id' is sent).
-      2. Creates new options (if no 'id' is sent).
-      3. Deletes options that are missing from the payload.
+    Updates text and replaces options for a specific question ID.
     """
     question = get_object_or_404(Question, pk=question_pk)
     data = request.data
@@ -146,42 +142,18 @@ def update_question(request, question_pk):
                 question.save()
 
             if new_options is not None:
-                incoming_ids = [item.get('id') for item in new_options if item.get('id')]
-
-                question.option_set.exclude(id__in=incoming_ids).delete()
-
-                for opt_data in new_options:
-                    opt_id = opt_data.get('id')
-                    opt_text = opt_data.get('text')
-                    opt_value = opt_data.get('value')
-
-                    if not opt_text or not opt_value:
-                        raise ValueError("All options must have 'text' and 'value'.")
-
-                    if opt_id:
-                        option = Option.objects.filter(id=opt_id, question=question).first()
-                        if option:
-                            option.text = opt_text
-                            option.value = opt_value
-                            option.save()
-                        else:
-                            Option.objects.create(question=question, text=opt_text, value=opt_value)
-                    else:
-                        Option.objects.create(
-                            question=question,
-                            text=opt_text,
-                            value=opt_value
-                        )
-
-    except ValueError as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                question.option_set.all().delete()
+                for opt in new_options:
+                    Option.objects.create(
+                        question=question,
+                        text=opt.get('text'),
+                        value=opt.get('value')
+                    )
     except Exception as e:
-        logger.error(f"Error updating question {question_pk}: {e}")
-        return Response({'error': 'An internal server error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': str(e)}, status=500)
 
     serializer = QuestionSerializer(question)
     return Response(serializer.data)
-
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
